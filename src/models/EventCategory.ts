@@ -1,0 +1,15 @@
+export type EventCategory =
+  | 'school'
+  | 'basketball'
+  | 'dance'
+  | 'privateLesson'
+  | 'scouts'
+  | 'doctor'
+  | 'dentist'
+  | 'haircut'
+  | 'friends'
+  | 'family'
+  | 'birthday'
+  | 'exam'
+  | 'transportation'
+  | 'other';
