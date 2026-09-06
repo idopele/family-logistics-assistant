@@ -8,7 +8,7 @@ export const children: Child[] = [
     isActive: true,
   },
   {
-    id: 'emmanuelle',
+    id: 'emanuel',
     name: 'עמנואל',
     color: '#DB2777',
     isActive: true,

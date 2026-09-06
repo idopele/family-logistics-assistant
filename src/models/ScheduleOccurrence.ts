@@ -1,0 +1,19 @@
+import type { Event } from './Event';
+import type { EventCategory } from './EventCategory';
+
+export interface ScheduleOccurrence {
+  eventId: string;
+  childId: string;
+  date: string;
+  title: string;
+  category: EventCategory;
+  startTime: string;
+  endTime: string | null;
+  location: string | null;
+  notes: string | null;
+  status: Event['status'];
+  requiresTransportation: boolean;
+  pickupTime: string | null;
+  dropoffTime: string | null;
+  isException: boolean;
+}
