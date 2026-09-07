@@ -83,6 +83,8 @@ export function HomePage() {
     () => customEvents.find((event) => event.id === selectedOccurrence?.eventId) ?? null,
     [customEvents, selectedOccurrence],
   );
+  const isSelectedCustomOneTimeEvent = selectedCustomEvent !== null && selectedCustomEvent.recurrence === null;
+  const isSelectedCustomRecurringEvent = selectedCustomEvent !== null && selectedCustomEvent.recurrence !== null;
   const transportationDialogPlan = useMemo(
     () =>
       transportationOccurrence === null
@@ -183,6 +185,10 @@ export function HomePage() {
   }
 
   function handleEditSelectedOccurrence() {
+    if (selectedOccurrence === null) {
+      return;
+    }
+
     setOccurrenceToEdit(selectedOccurrence);
     setSelectedOccurrence(null);
   }
@@ -337,7 +343,7 @@ export function HomePage() {
             editableEventIds={editableEventIds}
             customRecurringEventIds={customRecurringEventIds}
             transportationPlansByOccurrence={transportationPlansByOccurrence}
-            onCustomEventSelect={setSelectedOccurrence}
+            onOccurrenceSelect={setSelectedOccurrence}
             isToday={isDateInWorkWeek(today, weekStartDate) && today === day.date}
           />
         ))}
@@ -377,7 +383,12 @@ export function HomePage() {
         occurrence={selectedOccurrence}
         child={selectedOccurrence === null ? null : childrenById.get(selectedOccurrence.childId) ?? null}
         transportationPlan={selectedTransportationPlan}
-        canManageEvent={selectedCustomEvent !== null}
+        canEditEvent={isSelectedCustomOneTimeEvent}
+        canEditOccurrence={selectedEvent !== null && !isSelectedCustomOneTimeEvent}
+        canEditSeries={isSelectedCustomRecurringEvent}
+        canDeleteEvent={isSelectedCustomOneTimeEvent}
+        canCancelOccurrence={selectedEvent?.recurrence !== null && selectedEvent !== null}
+        canDeleteSeries={isSelectedCustomRecurringEvent}
         onClose={() => setSelectedOccurrence(null)}
         onEdit={handleEditSelectedEvent}
         onDelete={handleDeleteSelectedEvent}

@@ -6,7 +6,12 @@ interface EventDetailsDialogProps {
   occurrence: ScheduleOccurrence | null;
   child: Child | null;
   transportationPlan: TransportationPlan | null;
-  canManageEvent: boolean;
+  canEditEvent: boolean;
+  canEditOccurrence: boolean;
+  canEditSeries: boolean;
+  canDeleteEvent: boolean;
+  canCancelOccurrence: boolean;
+  canDeleteSeries: boolean;
   onClose: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -22,7 +27,12 @@ export function EventDetailsDialog({
   occurrence,
   child,
   transportationPlan,
-  canManageEvent,
+  canEditEvent,
+  canEditOccurrence,
+  canEditSeries,
+  canDeleteEvent,
+  canCancelOccurrence,
+  canDeleteSeries,
   onClose,
   onEdit,
   onDelete,
@@ -60,7 +70,7 @@ export function EventDetailsDialog({
             <dt>סוג</dt>
             <dd>{getEventCategoryLabel(event)}</dd>
           </div>
-          {canManageEvent && isRecurring ? (
+          {isRecurring ? (
             <div>
               <dt>חזרתיות</dt>
               <dd>אירוע חוזר</dd>
@@ -94,29 +104,41 @@ export function EventDetailsDialog({
         {transportationPlan !== null ? <TransportationDetails plan={transportationPlan} /> : null}
 
         <div className="event-details-dialog__actions">
-          {canManageEvent && isRecurring ? (
+          {canEditOccurrence || canEditSeries || canCancelOccurrence || canDeleteSeries ? (
             <>
-              <button className="event-details-dialog__edit" type="button" onClick={onEditOccurrence}>
-                עריכת המופע הזה
-              </button>
-              <button className="event-details-dialog__edit" type="button" onClick={onEditSeries}>
-                עריכת כל הסדרה
-              </button>
-              <button className="event-details-dialog__delete" type="button" onClick={onCancelOccurrence}>
-                ביטול המופע הזה
-              </button>
-              <button className="event-details-dialog__delete" type="button" onClick={onDeleteSeries}>
-                מחיקת כל הסדרה
-              </button>
+              {canEditOccurrence ? (
+                <button className="event-details-dialog__edit" type="button" onClick={onEditOccurrence}>
+                  {canEditSeries ? 'עריכת המופע הזה' : 'עריכת האירוע'}
+                </button>
+              ) : null}
+              {canEditSeries ? (
+                <button className="event-details-dialog__edit" type="button" onClick={onEditSeries}>
+                  עריכת כל הסדרה
+                </button>
+              ) : null}
+              {canCancelOccurrence ? (
+                <button className="event-details-dialog__delete" type="button" onClick={onCancelOccurrence}>
+                  ביטול האירוע בתאריך הזה
+                </button>
+              ) : null}
+              {canDeleteSeries ? (
+                <button className="event-details-dialog__delete" type="button" onClick={onDeleteSeries}>
+                  מחיקת כל הסדרה
+                </button>
+              ) : null}
             </>
-          ) : canManageEvent ? (
+          ) : canEditEvent || canDeleteEvent ? (
             <>
-              <button className="event-details-dialog__edit" type="button" onClick={onEdit}>
-                עריכת אירוע
-              </button>
-              <button className="event-details-dialog__delete" type="button" onClick={onDelete}>
-                מחיקת אירוע
-              </button>
+              {canEditEvent ? (
+                <button className="event-details-dialog__edit" type="button" onClick={onEdit}>
+                  עריכת האירוע
+                </button>
+              ) : null}
+              {canDeleteEvent ? (
+                <button className="event-details-dialog__delete" type="button" onClick={onDelete}>
+                  מחיקת אירוע
+                </button>
+              ) : null}
             </>
           ) : null}
           <button className="event-details-dialog__transportation" type="button" onClick={onOpenTransportation}>

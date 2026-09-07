@@ -57,4 +57,11 @@ describe('OccurrenceEditDialog helpers', () => {
       notes: 'Bring water',
     });
   });
+
+  it('can clear endTime to null for one occurrence', () => {
+    expect(buildExceptionFromOccurrenceEdit(occurrence, { ...validValues, endTime: '', endsNextDay: false })).toMatchObject({
+      endTime: null,
+      endsNextDay: false,
+    });
+  });
 });

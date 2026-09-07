@@ -301,6 +301,92 @@ describe('scheduleEngine', () => {
     expect(occurrences[2]).toMatchObject({ title: 'School', endsNextDay: false, isException: false });
   });
 
+  it('overrides endTime for one selected seed recurring occurrence only', () => {
+    const seedRecurringEvent = makeEvent({
+      date: null,
+      recurrence: { frequency: 'weekly', interval: 1, startDate: '2026-09-07', daysOfWeek: [1] },
+      endTime: '13:00',
+    });
+    const exception = makeException({ date: '2026-09-14', endTime: '12:00' });
+    const occurrences = getOccurrencesForRange([seedRecurringEvent], [exception], '2026-09-07', '2026-09-21');
+
+    expect(occurrences.map((occurrence) => occurrence.endTime)).toEqual(['13:00', '12:00', '13:00']);
+    expect(occurrences.map((occurrence) => occurrence.isException)).toEqual([false, true, false]);
+  });
+
+  it('overrides startTime location clears endTime and supports overnight for a seed occurrence', () => {
+    const seedRecurringEvent = makeEvent({
+      date: null,
+      recurrence: { frequency: 'weekly', interval: 1, startDate: '2026-09-07', daysOfWeek: [1] },
+      endTime: '13:00',
+      location: 'Original school',
+    });
+    const exception = makeException({
+      date: '2026-09-14',
+      startTime: '23:00',
+      endTime: null,
+      endsNextDay: true,
+      location: 'Changed room',
+    });
+
+    expect(getOccurrencesForDate([seedRecurringEvent], [exception], '2026-09-14')[0]).toMatchObject({
+      startTime: '23:00',
+      endTime: null,
+      endsNextDay: true,
+      location: 'Changed room',
+      isException: true,
+    });
+  });
+
+  it('overrides a seed one-time occurrence through an exception', () => {
+    const seedOneTimeEvent = makeEvent({
+      id: 'seed-doctor',
+      title: 'Doctor',
+      date: '2026-09-08',
+      recurrence: null,
+      startTime: '15:20',
+    });
+    const exception = makeException({
+      eventId: 'seed-doctor',
+      date: '2026-09-08',
+      startTime: '16:00',
+      title: 'Doctor changed',
+    });
+
+    expect(getOccurrencesForDate([seedOneTimeEvent], [exception], '2026-09-08')[0]).toMatchObject({
+      title: 'Doctor changed',
+      startTime: '16:00',
+      isException: true,
+    });
+  });
+
+  it('does not mutate the seed source Event when applying an occurrence exception', () => {
+    const seedRecurringEvent = makeEvent({
+      date: null,
+      recurrence: { frequency: 'weekly', interval: 1, startDate: '2026-09-07', daysOfWeek: [1] },
+      endTime: '13:00',
+    });
+    const originalSeedEvent = structuredClone(seedRecurringEvent);
+    const exception = makeException({ date: '2026-09-14', endTime: '12:00' });
+
+    getOccurrencesForDate([seedRecurringEvent], [exception], '2026-09-14');
+
+    expect(seedRecurringEvent).toEqual(originalSeedEvent);
+  });
+
+  it('cancels one seed recurring occurrence without removing adjacent dates', () => {
+    const seedRecurringEvent = makeEvent({
+      date: null,
+      recurrence: { frequency: 'daily', interval: 1, startDate: '2026-09-13', endDate: '2026-09-15' },
+    });
+    const exception = makeException({ type: 'cancelled', date: '2026-09-14' });
+
+    expect(getOccurrencesForRange([seedRecurringEvent], [exception], '2026-09-13', '2026-09-15').map((occurrence) => occurrence.date)).toEqual([
+      '2026-09-13',
+      '2026-09-15',
+    ]);
+  });
+
   it('sorts multiple children and events deterministically', () => {
     const events = [
       makeEvent({ id: 'event-b', childId: 'child-b', startTime: '08:00' }),

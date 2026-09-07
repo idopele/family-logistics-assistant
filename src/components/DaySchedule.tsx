@@ -13,7 +13,7 @@ interface DayScheduleProps {
   editableEventIds: Set<string>;
   customRecurringEventIds: Set<string>;
   transportationPlansByOccurrence: Map<string, TransportationPlan>;
-  onCustomEventSelect: (occurrence: ScheduleOccurrence) => void;
+  onOccurrenceSelect: (occurrence: ScheduleOccurrence) => void;
   isToday: boolean;
 }
 
@@ -26,7 +26,7 @@ export function DaySchedule({
   editableEventIds,
   customRecurringEventIds,
   transportationPlansByOccurrence,
-  onCustomEventSelect,
+  onOccurrenceSelect,
   isToday,
 }: DayScheduleProps) {
   const schoolOccurrences = occurrences.filter((occurrence) => occurrence.category === 'school');
@@ -55,6 +55,7 @@ export function DaySchedule({
                         occurrence={occurrence}
                         child={child}
                         showChildLabel={childFilter === 'all'}
+                        onSelect={onOccurrenceSelect}
                       />
                     ) : null;
                   })}
@@ -75,7 +76,7 @@ export function DaySchedule({
                       isEditable={editableEventIds.has(occurrence.eventId)}
                       isRecurring={customRecurringEventIds.has(occurrence.eventId)}
                       transportationPlan={transportationPlansByOccurrence.get(getOccurrenceKey(occurrence)) ?? null}
-                      onSelect={onCustomEventSelect}
+                      onSelect={onOccurrenceSelect}
                     />
                   ) : null;
                 })}
@@ -113,21 +114,29 @@ function SchoolLessonRow({
   occurrence,
   child,
   showChildLabel,
+  onSelect,
 }: {
   occurrence: ScheduleOccurrence;
   child: Child;
   showChildLabel: boolean;
+  onSelect: (occurrence: ScheduleOccurrence) => void;
 }) {
   const style = { '--child-color': child.color } as CSSProperties;
 
   return (
-    <div className="school-row" data-show-child={showChildLabel ? 'true' : 'false'} style={style}>
+    <button
+      className="school-row school-row--button"
+      data-show-child={showChildLabel ? 'true' : 'false'}
+      style={style}
+      type="button"
+      onClick={() => onSelect(occurrence)}
+    >
       <span className="school-row__indicator" aria-hidden="true" />
       <time className="school-row__time" dateTime={`${occurrence.date}T${occurrence.startTime}`}>
         {occurrence.startTime}
       </time>
       {showChildLabel ? <span className="school-row__child">{child.name}</span> : null}
       <span className="school-row__title">{occurrence.title}</span>
-    </div>
+    </button>
   );
 }

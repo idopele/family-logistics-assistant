@@ -40,6 +40,21 @@ describe('localEventExceptionStorage', () => {
     expect(loadCustomEventExceptions()).toEqual([modifiedException]);
   });
 
+  it('loads saved exceptions for seed event overrides after refresh', () => {
+    vi.stubGlobal('localStorage', createMemoryStorage());
+    const seedException: EventException = {
+      ...modifiedException,
+      id: 'exception-seed-school-2026-09-08',
+      eventId: 'seed-school-a',
+      date: '2026-09-08',
+      endTime: '12:30',
+    };
+
+    saveCustomEventExceptions([seedException]);
+
+    expect(loadCustomEventExceptions()).toEqual([seedException]);
+  });
+
   it('ignores invalid stored exception data', () => {
     const storage = createMemoryStorage();
     storage.setItem(customEventExceptionsStorageKey, JSON.stringify([{ ...modifiedException, type: 'bad' }]));
@@ -56,6 +71,23 @@ describe('localEventExceptionStorage', () => {
     };
 
     expect(upsertCustomEventException([modifiedException], updatedException)).toEqual([updatedException]);
+  });
+
+  it('upserts seed event exceptions without duplicating eventId and date', () => {
+    const seedException: EventException = {
+      ...modifiedException,
+      id: 'exception-seed-a',
+      eventId: 'seed-school-a',
+      date: '2026-09-08',
+      endTime: '12:30',
+    };
+    const updatedSeedException: EventException = {
+      ...seedException,
+      id: 'exception-seed-a-updated',
+      endTime: '11:45',
+    };
+
+    expect(upsertCustomEventException([seedException], updatedSeedException)).toEqual([updatedSeedException]);
   });
 
   it('deletes exceptions only for the selected event series', () => {
