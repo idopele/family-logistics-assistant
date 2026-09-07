@@ -11,6 +11,7 @@ const customEvent: Event = {
   date: '2026-09-08',
   startTime: '15:20',
   endTime: null,
+  endsNextDay: false,
   location: null,
   notes: null,
   recurrence: null,
@@ -88,6 +89,38 @@ describe('localEventStorage', () => {
     });
     expect(persistedEvents).toHaveLength(1);
     expect(persistedEvents[0]?.category).toBe('parentMeeting');
+  });
+
+  it('migrates old stored events without endsNextDay to false', () => {
+    const storage = createMemoryStorage();
+    const oldCustomEvent: Omit<Event, 'endsNextDay'> = {
+      id: 'old-custom-event-a',
+      childId: 'daniel',
+      title: 'Late pickup',
+      category: 'other',
+      date: '2026-09-12',
+      startTime: '22:30',
+      endTime: '23:00',
+      location: null,
+      notes: null,
+      recurrence: null,
+      requiresTransportation: false,
+      pickupTime: null,
+      dropoffTime: null,
+      status: 'scheduled',
+      createdAt: '2026-09-12T18:00:00.000Z',
+      updatedAt: '2026-09-12T18:00:00.000Z',
+    };
+    storage.setItem(customEventsStorageKey, JSON.stringify([oldCustomEvent]));
+    vi.stubGlobal('localStorage', storage);
+
+    const loadedEvents = loadCustomEvents();
+    const persistedEvents = JSON.parse(storage.getItem(customEventsStorageKey) ?? '[]') as Event[];
+
+    expect(loadedEvents).toHaveLength(1);
+    expect(loadedEvents[0]?.endsNextDay).toBe(false);
+    expect(persistedEvents).toHaveLength(1);
+    expect(persistedEvents[0]?.endsNextDay).toBe(false);
   });
 });
 

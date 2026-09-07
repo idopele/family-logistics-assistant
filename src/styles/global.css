@@ -311,6 +311,21 @@ select {
   resize: vertical;
 }
 
+.checkbox-field {
+  align-items: center;
+  display: flex;
+  gap: 0.45rem;
+  color: #334155;
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.checkbox-field input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #0f766e;
+}
+
 .color-field {
   min-width: 0;
   margin: 0;
@@ -547,6 +562,16 @@ select {
   font-size: 0.95rem;
   font-weight: 900;
   unicode-bidi: isolate;
+}
+
+.event-card__next-day {
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 900;
+  padding: 0.12rem 0.45rem;
+  white-space: nowrap;
 }
 
 .event-card__badge {

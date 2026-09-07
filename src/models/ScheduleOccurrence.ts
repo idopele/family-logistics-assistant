@@ -9,6 +9,7 @@ export interface ScheduleOccurrence {
   category: EventCategory;
   startTime: string;
   endTime: string | null;
+  endsNextDay: boolean;
   location: string | null;
   notes: string | null;
   status: Event['status'];

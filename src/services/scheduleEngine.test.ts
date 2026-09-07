@@ -12,6 +12,7 @@ const baseEvent: Event = {
   date: '2026-09-07',
   startTime: '08:00',
   endTime: '13:00',
+  endsNextDay: false,
   location: 'School',
   notes: 'Bring bag',
   recurrence: null,
@@ -74,6 +75,17 @@ describe('scheduleEngine', () => {
       startTime: '15:20',
       endTime: null,
     });
+  });
+
+  it('preserves endsNextDay in schedule occurrences', () => {
+    const overnightEvent = makeEvent({
+      date: '2026-09-12',
+      startTime: '23:00',
+      endTime: '01:00',
+      endsNextDay: true,
+    });
+
+    expect(getOccurrencesForDate([overnightEvent], [], '2026-09-12')[0]?.endsNextDay).toBe(true);
   });
 
   it('returns Daniel doctor seed event through range resolution', () => {

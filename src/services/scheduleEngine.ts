@@ -112,6 +112,7 @@ function toOccurrence(event: Event, date: string): ScheduleOccurrence {
     category: event.category,
     startTime: event.startTime,
     endTime: event.endTime,
+    endsNextDay: event.endsNextDay,
     location: event.location,
     notes: event.notes,
     status: event.status,

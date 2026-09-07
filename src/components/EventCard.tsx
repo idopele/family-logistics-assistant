@@ -15,6 +15,7 @@ export function EventCard({ occurrence, child }: EventCardProps) {
     <article className="event-card" style={style}>
       <div className="event-card__topline">
         <span className="event-card__time">{timeLabel}</span>
+        {occurrence.endsNextDay ? <span className="event-card__next-day">למחרת</span> : null}
         <span className="event-card__badge">{eventCategories[occurrence.category]}</span>
       </div>
       <div className="event-card__child">{child.name}</div>

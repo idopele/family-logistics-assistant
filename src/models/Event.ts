@@ -12,6 +12,8 @@ export interface Event {
   startTime: string;
   /** Local 24-hour HH:mm, or null when the end time or duration is not yet known. */
   endTime: string | null;
+  /** False means endTime is on the same date; true means endTime is on the following date. */
+  endsNextDay: boolean;
   location: string | null;
   notes: string | null;
   recurrence: RecurrenceRule | null;

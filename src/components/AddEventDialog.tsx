@@ -10,13 +10,14 @@ interface AddEventDialogProps {
   onSave: (event: Event) => void;
 }
 
-interface FormValues {
+export interface AddEventFormValues {
   childId: string;
   category: ManualEventCategory;
   title: string;
   date: string;
   startTime: string;
   endTime: string;
+  endsNextDay: boolean;
   location: string;
   notes: string;
 }
@@ -42,19 +43,20 @@ const manualCategories: ManualEventCategory[] = [
   'other',
 ];
 
-const initialValues: FormValues = {
+const initialValues: AddEventFormValues = {
   childId: 'daniel',
   category: 'other',
   title: '',
   date: '',
   startTime: '',
   endTime: '',
+  endsNextDay: false,
   location: '',
   notes: '',
 };
 
 export function AddEventDialog({ isOpen, children, onClose, onSave }: AddEventDialogProps) {
-  const [values, setValues] = useState<FormValues>(initialValues);
+  const [values, setValues] = useState<AddEventFormValues>(initialValues);
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) {
@@ -64,7 +66,7 @@ export function AddEventDialog({ isOpen, children, onClose, onSave }: AddEventDi
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const validationError = validateForm(values, children);
+    const validationError = validateAddEventForm(values, children);
 
     if (validationError !== null) {
       setError(validationError);
@@ -80,6 +82,7 @@ export function AddEventDialog({ isOpen, children, onClose, onSave }: AddEventDi
       date: values.date,
       startTime: values.startTime,
       endTime: values.endTime === '' ? null : values.endTime,
+      endsNextDay: values.endTime === '' ? false : values.endsNextDay,
       location: nullableText(values.location),
       notes: nullableText(values.notes),
       recurrence: null,
@@ -162,8 +165,19 @@ export function AddEventDialog({ isOpen, children, onClose, onSave }: AddEventDi
             <input
               type="time"
               value={values.endTime}
-              onChange={(event) => setValues({ ...values, endTime: event.target.value })}
+              onChange={(event) =>
+                setValues({ ...values, endTime: event.target.value, endsNextDay: event.target.value === '' ? false : values.endsNextDay })
+              }
             />
+          </label>
+
+          <label className="checkbox-field">
+            <input
+              type="checkbox"
+              checked={values.endsNextDay}
+              onChange={(event) => setValues({ ...values, endsNextDay: event.target.checked })}
+            />
+            <span>מסתיים ביום למחרת</span>
           </label>
 
           <label className="form-field">
@@ -192,7 +206,7 @@ export function AddEventDialog({ isOpen, children, onClose, onSave }: AddEventDi
   );
 }
 
-function validateForm(values: FormValues, children: Child[]): string | null {
+export function validateAddEventForm(values: AddEventFormValues, children: Child[]): string | null {
   if (values.childId === '' || !children.some((child) => child.id === values.childId)) {
     return 'בחרו ילד.';
   }
@@ -209,11 +223,15 @@ function validateForm(values: FormValues, children: Child[]): string | null {
     return 'יש להזין שעת התחלה תקינה.';
   }
 
+  if (values.endsNextDay && values.endTime === '') {
+    return 'יש להזין שעת סיום לאירוע שמסתיים ביום למחרת.';
+  }
+
   if (values.endTime !== '' && !isValidTime(values.endTime)) {
     return 'יש להזין שעת סיום תקינה או להשאיר ריק.';
   }
 
-  if (values.endTime !== '' && values.endTime < values.startTime) {
+  if (!values.endsNextDay && values.endTime !== '' && values.endTime < values.startTime) {
     return 'שעת הסיום לא יכולה להיות מוקדמת משעת ההתחלה.';
   }
 

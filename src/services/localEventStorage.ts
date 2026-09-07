@@ -86,6 +86,7 @@ function isStoredEvent(value: unknown): value is Event {
     (typeof event.date === 'string' || event.date === null) &&
     typeof event.startTime === 'string' &&
     (typeof event.endTime === 'string' || event.endTime === null) &&
+    (typeof event.endsNextDay === 'boolean' || event.endsNextDay === undefined) &&
     (typeof event.location === 'string' || event.location === null) &&
     (typeof event.notes === 'string' || event.notes === null) &&
     (typeof event.recurrence === 'object' || event.recurrence === null) &&
@@ -103,16 +104,24 @@ function isEventCategory(value: unknown): value is EventCategory {
 }
 
 function migrateStoredEvent(event: Event): Event {
-  if (event.category === 'other' && parentMeetingTitles.includes(event.title)) {
+  const eventWithOvernightFlag = {
+    ...event,
+    endsNextDay: event.endsNextDay ?? false,
+  };
+
+  if (eventWithOvernightFlag.category === 'other' && parentMeetingTitles.includes(eventWithOvernightFlag.title)) {
     return {
-      ...event,
+      ...eventWithOvernightFlag,
       category: 'parentMeeting',
     };
   }
 
-  return event;
+  return eventWithOvernightFlag;
 }
 
 function hasMigratedEvents(originalEvents: Event[], migratedEvents: Event[]): boolean {
-  return originalEvents.some((event, index) => event.category !== migratedEvents[index]?.category);
+  return originalEvents.some(
+    (event, index) =>
+      event.category !== migratedEvents[index]?.category || event.endsNextDay !== migratedEvents[index]?.endsNextDay,
+  );
 }

@@ -23,6 +23,7 @@ function createWeeklyEvent(seed: WeeklySeedEvent, index: number): Event {
     date: null,
     startTime: seed.startTime,
     endTime: seed.endTime,
+    endsNextDay: false,
     location: seed.location ?? null,
     notes: seed.notes ?? null,
     recurrence: {
@@ -145,6 +146,7 @@ const oneTimeEvents: Event[] = [
     date: '2026-09-08',
     startTime: '15:20',
     endTime: null,
+    endsNextDay: false,
     location: null,
     notes: null,
     recurrence: null,
