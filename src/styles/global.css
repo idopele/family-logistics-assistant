@@ -197,6 +197,19 @@ summary:focus-visible {
 
 .dashboard-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: start; }
 .dashboard-header-tools { display: grid; gap: var(--space-2); justify-items: start; }
+.shared-data-status {
+  width: fit-content;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0.28rem 0.65rem;
+  background: rgb(255 255 255 / 62%);
+  color: var(--color-text-soft);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+.shared-data-status[data-status='shared'] { border-color: #9bd4c9; background: #e5f7f3; color: #0f766e; }
+.shared-data-status[data-status='syncing'] { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+.shared-data-status[data-status='issue'] { border-color: #f0b4a3; background: #fff1ed; color: #b43d1e; }
 .ui-preferences { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .ui-preferences__group {
   display: inline-flex;
@@ -280,6 +293,37 @@ summary:focus-visible {
 .transportation-filter-toggle input, .checkbox-field input { width: 1.05rem; height: 1.05rem; accent-color: var(--color-primary); }
 .transportation-week-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.7rem; padding: 0.55rem 0.75rem; }
 .transportation-week-summary strong, .transportation-week-summary span { font-size: 0.86rem; }
+.shared-data-message {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 0.65rem 0.8rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-card);
+}
+.shared-data-message span { font-size: 0.9rem; font-weight: 800; }
+.shared-data-message button {
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  padding: 0.45rem 0.75rem;
+  background: #fff;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+.shared-data-message button:hover:not(:disabled) { transform: translateY(-1px); border-color: var(--color-primary); }
+.shared-data-message button:disabled { cursor: wait; opacity: 0.72; }
+.shared-data-message__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.shared-data-message[data-status='issue'] { border-color: #f0b4a3; background: #fff1ed; color: #8f2f18; }
+.shared-data-message[data-status='migration'] { border-color: #9bd4c9; background: #ecfdf8; color: #0f5e56; }
 .transportation-conflicts { padding: 0.6rem 0.75rem; }
 .transportation-conflicts summary { cursor: pointer; font-size: 0.9rem; font-weight: 950; }
 .transportation-conflicts__list { display: grid; gap: var(--space-2); margin-top: var(--space-3); }
@@ -546,6 +590,42 @@ summary:focus-visible {
   border-color: #8a6732;
   background: #3b2d1e;
   color: #ffe1ad;
+}
+
+:root[data-theme='dark'] .shared-data-status[data-status='shared'] {
+  border-color: #2dd4bf;
+  background: #123f3b;
+  color: #b8fff4;
+}
+:root[data-theme='dark'] .shared-data-status[data-status='syncing'] {
+  border-color: #60a5fa;
+  background: #142f54;
+  color: #d9ebff;
+}
+:root[data-theme='dark'] .shared-data-status[data-status='issue'] {
+  border-color: #f18668;
+  background: #522316;
+  color: #ffe1d7;
+}
+:root[data-theme='dark'] .shared-data-message {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+:root[data-theme='dark'] .shared-data-message button {
+  border-color: var(--color-border-strong);
+  background: rgb(255 255 255 / 9%);
+  color: var(--color-text);
+}
+:root[data-theme='dark'] .shared-data-message[data-status='issue'] {
+  border-color: #f18668;
+  background: #522316;
+  color: #ffe1d7;
+}
+:root[data-theme='dark'] .shared-data-message[data-status='migration'] {
+  border-color: #2dd4bf;
+  background: #123f3b;
+  color: #d9fff8;
 }
 
 :root[data-theme='dark'] .transportation-conflict h3,

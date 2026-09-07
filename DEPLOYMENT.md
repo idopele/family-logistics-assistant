@@ -15,9 +15,10 @@ Do not add a fake password screen inside the React app for this MVP. Temporary p
 - Framework: Vite / React
 - Language: TypeScript
 - Package manager: npm
-- Backend required: no
-- Database required: no
+- Backend required: Cloudflare Pages Functions only
+- Database required: Cloudflare D1
 - Runtime secrets required: yes, for temporary HTTP Basic Authentication
+- D1 binding required: yes, `FAMILY_DB`
 - Production output directory: `dist`
 - Client-side deep links: not currently used
 
@@ -61,6 +62,40 @@ Do not commit the actual username or password to Git, README, DEPLOYMENT.md, `.e
 
 This is temporary shared-password protection for the private family MVP. It will later be replaced by proper family authentication.
 
+## Cloudflare D1 Shared Family Data
+
+Mutable family data is stored in Cloudflare D1 through Cloudflare Pages Functions. The browser never talks to D1 directly; React only calls same-origin `/api/shared`.
+
+Required D1 binding name:
+
+- `FAMILY_DB`
+
+Database migration file:
+
+- `migrations/0001_shared_family_data.sql`
+
+The migration creates:
+
+- `custom_children`
+- `custom_events`
+- `event_exceptions`
+- `transportation_plans`
+- `app_meta`
+
+The existing Basic Auth middleware protects both the frontend and `/api/*` requests. Do not create unauthenticated API routes.
+
+Manual Cloudflare setup:
+
+1. Create a Cloudflare D1 database for the family dashboard.
+2. Apply `migrations/0001_shared_family_data.sql` to that D1 database.
+3. In the Cloudflare Pages project, add a D1 binding named `FAMILY_DB`.
+4. Confirm `FAMILY_AUTH_USERNAME` and `FAMILY_AUTH_PASSWORD` are still configured as encrypted Secrets.
+5. Redeploy the Pages project.
+6. Open the deployed site in an Incognito/private browser and verify Basic Auth appears before the app or any `/api/*` request is served.
+7. Confirm custom children, custom events, occurrence changes, and transportation plans sync between two browsers/devices after refresh or focus.
+
+Do not document database IDs, API tokens, passwords, or secret values in the repository.
+
 ## Manual Deployment Steps
 
 1. Commit the current project state to Git.
@@ -70,10 +105,11 @@ This is temporary shared-password protection for the private family MVP. It will
 5. Configure the build settings exactly as listed above.
 6. Run the first Pages deployment.
 7. Before sharing the deployed URL, configure the required encrypted Secrets for the Pages Function password gate.
-8. Redeploy after the secrets are configured.
-9. Open the deployment URL in an Incognito/private browser.
-10. Confirm the app is blocked until valid shared-family HTTP Basic Authentication credentials are entered.
-11. After authentication, confirm the app loads normally.
+8. Create the D1 database, apply the SQL migration, and add the `FAMILY_DB` binding.
+9. Redeploy after the secrets and D1 binding are configured.
+10. Open the deployment URL in an Incognito/private browser.
+11. Confirm the app is blocked until valid shared-family HTTP Basic Authentication credentials are entered.
+12. After authentication, confirm the app loads normally.
 
 ## localStorage MVP Limitation
 
@@ -98,6 +134,8 @@ Before sharing the private URL:
 - `npm run build` passes.
 - Cloudflare Pages serves the `dist` output.
 - `FAMILY_AUTH_USERNAME` and `FAMILY_AUTH_PASSWORD` are configured as encrypted Cloudflare Pages Secrets.
+- `FAMILY_DB` is bound to the Cloudflare Pages project.
+- `migrations/0001_shared_family_data.sql` has been applied to the D1 database.
 - The Pages Function password gate is verified in an Incognito/private browser.
 - The app works at desktop, tablet, and phone widths.
 - Hebrew mode uses RTL.

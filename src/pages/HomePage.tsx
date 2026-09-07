@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AddChildDialog } from '../components/AddChildDialog';
 import { AddEventDialog } from '../components/AddEventDialog';
 import { DaySchedule } from '../components/DaySchedule';
@@ -15,22 +15,31 @@ import { children as seedChildren } from '../data/children';
 import { eventExceptions } from '../data/eventExceptions';
 import { events } from '../data/events';
 import type { Child, Event, EventException, ScheduleOccurrence, TransportationPlan } from '../models';
-import { loadCustomChildren, saveCustomChildren } from '../services/localChildStorage';
-import { deleteCustomEvent, loadCustomEvents, saveCustomEvents, updateCustomEvent } from '../services/localEventStorage';
+import { deleteCustomEvent, updateCustomEvent } from '../services/localEventStorage';
 import {
   deleteCustomEventExceptionsForEvent,
-  loadCustomEventExceptions,
-  saveCustomEventExceptions,
   upsertCustomEventException,
 } from '../services/localEventExceptionStorage';
 import {
   deleteTransportationPlan,
   deleteTransportationPlansForEvent,
   getTransportationPlanForScheduleOccurrence,
-  loadTransportationPlans,
-  saveTransportationPlans,
   upsertTransportationPlan,
 } from '../services/localTransportationStorage';
+import {
+  deleteSharedEvent,
+  deleteSharedTransportationPlan,
+  hasLocalFamilyData,
+  importLocalFamilyData,
+  isLocalMigrationConfirmed,
+  loadLocalFamilyDataForMigration,
+  loadSharedFamilyState,
+  upsertSharedChild,
+  upsertSharedEvent,
+  upsertSharedEventException,
+  upsertSharedTransportationPlan,
+  type LocalFamilyData,
+} from '../services/sharedFamilyData';
 import { getOccurrencesForRange } from '../services/scheduleEngine';
 import { detectTransportationConflicts } from '../services/transportationConflictDetection';
 import { buildFamilyActionCenterData } from '../services/familyActionCenter';
@@ -52,10 +61,13 @@ type PendingConfirmation =
   | { type: 'deleteSeries'; eventId: string }
   | null;
 
+type SharedDataStatus = 'syncing' | 'shared' | 'issue';
+
 export function HomePage() {
   const { language, t } = useUiPreferences();
   const today = useMemo(() => getTodayDateString(), []);
   const currentTime = useMemo(() => getCurrentTimeString(), []);
+  const localMigrationData = useMemo<LocalFamilyData>(() => loadLocalFamilyDataForMigration(), []);
   const currentWeekStartDate = useMemo(() => getSundayOfWeek(today), [today]);
   const [weekStartDate, setWeekStartDate] = useState(() => getSundayOfWeek(today));
   const [childFilter, setChildFilter] = useState<ChildFilter>('all');
@@ -68,10 +80,15 @@ export function HomePage() {
   const [eventToEdit, setEventToEdit] = useState<Event | null>(null);
   const [occurrenceToEdit, setOccurrenceToEdit] = useState<ScheduleOccurrence | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation>(null);
-  const [customEvents, setCustomEvents] = useState<Event[]>(() => loadCustomEvents());
-  const [customEventExceptions, setCustomEventExceptions] = useState<EventException[]>(() => loadCustomEventExceptions());
-  const [transportationPlans, setTransportationPlans] = useState<TransportationPlan[]>(() => loadTransportationPlans());
-  const [customChildren, setCustomChildren] = useState<Child[]>(() => loadCustomChildren());
+  const [customEvents, setCustomEvents] = useState<Event[]>(() => localMigrationData.customEvents);
+  const [customEventExceptions, setCustomEventExceptions] = useState<EventException[]>(() => localMigrationData.eventExceptions);
+  const [transportationPlans, setTransportationPlans] = useState<TransportationPlan[]>(() => localMigrationData.transportationPlans);
+  const [customChildren, setCustomChildren] = useState<Child[]>(() => localMigrationData.customChildren);
+  const [sharedDataStatus, setSharedDataStatus] = useState<SharedDataStatus>('syncing');
+  const [sharedDataInitialized, setSharedDataInitialized] = useState(false);
+  const [isMigrationDismissed, setIsMigrationDismissed] = useState(false);
+  const [isImportingLocalData, setIsImportingLocalData] = useState(false);
+  const [sharedDataError, setSharedDataError] = useState<string | null>(null);
   const weekDays = useMemo(() => getWorkWeekDays(weekStartDate, language), [language, weekStartDate]);
   const activeChildren = useMemo(() => [...seedChildren, ...customChildren].filter((child) => child.isActive), [customChildren]);
   const childrenById = useMemo(() => new Map(activeChildren.map((child) => [child.id, child])), [activeChildren]);
@@ -170,28 +187,114 @@ export function HomePage() {
     [activeChildren, allEventExceptions, allEvents, currentTime, language, today, transportationPlans],
   );
 
-  function handleSaveCustomEvent(event: Event) {
-    const nextCustomEvents = [...customEvents, event];
+  const shouldShowMigrationNotice =
+    !sharedDataInitialized && !isMigrationDismissed && hasLocalFamilyData(localMigrationData) && sharedDataStatus !== 'syncing';
 
-    setCustomEvents(nextCustomEvents);
-    saveCustomEvents(nextCustomEvents);
+  const refreshSharedData = useCallback(async (showSyncing = false) => {
+    if (showSyncing) {
+      setSharedDataStatus('syncing');
+    }
+
+    try {
+      const sharedState = await loadSharedFamilyState();
+
+      setCustomChildren(sharedState.customChildren);
+      setCustomEvents(sharedState.customEvents);
+      setCustomEventExceptions(sharedState.eventExceptions);
+      setTransportationPlans(sharedState.transportationPlans);
+      setSharedDataInitialized(sharedState.initialized);
+      setSharedDataStatus('shared');
+      setSharedDataError(null);
+
+      return sharedState;
+    } catch {
+      setSharedDataStatus('issue');
+      setSharedDataError(t('sharedDataLoadError'));
+
+      return null;
+    }
+  }, [t]);
+
+  useEffect(() => {
+    void refreshSharedData(true);
+  }, [refreshSharedData]);
+
+  useEffect(() => {
+    function handleWindowFocus() {
+      void refreshSharedData();
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        void refreshSharedData();
+      }
+    }
+
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void refreshSharedData();
+      }
+    }, 30_000);
+
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.clearInterval(intervalId);
+    };
+  }, [refreshSharedData]);
+
+  async function runSharedMutation(action: () => Promise<void>): Promise<boolean> {
+    setSharedDataStatus('syncing');
+    setSharedDataError(null);
+
+    try {
+      await action();
+      setSharedDataInitialized(true);
+      setSharedDataStatus('shared');
+
+      return true;
+    } catch {
+      setSharedDataStatus('issue');
+      setSharedDataError(t('sharedDataSaveError'));
+
+      return false;
+    }
+  }
+
+  async function handleSaveCustomEvent(event: Event) {
+    const didSave = await runSharedMutation(() => upsertSharedEvent(event));
+
+    if (!didSave) {
+      return;
+    }
+
+    setCustomEvents([...customEvents, event]);
     setIsAddEventOpen(false);
   }
 
-  function handleSaveEditedEvent(event: Event) {
-    const nextCustomEvents = updateCustomEvent(customEvents, event);
+  async function handleSaveEditedEvent(event: Event) {
+    const didSave = await runSharedMutation(() => upsertSharedEvent(event));
 
-    setCustomEvents(nextCustomEvents);
-    saveCustomEvents(nextCustomEvents);
+    if (!didSave) {
+      return;
+    }
+
+    setCustomEvents(updateCustomEvent(customEvents, event));
     setEventToEdit(null);
     setSelectedOccurrence(null);
   }
 
-  function handleSaveCustomChild(child: Child) {
-    const nextCustomChildren = [...customChildren, child];
+  async function handleSaveCustomChild(child: Child) {
+    const didSave = await runSharedMutation(() => upsertSharedChild(child));
 
-    setCustomChildren(nextCustomChildren);
-    saveCustomChildren(nextCustomChildren);
+    if (!didSave) {
+      return;
+    }
+
+    setCustomChildren([...customChildren, child]);
     setIsAddChildOpen(false);
   }
 
@@ -245,35 +348,46 @@ export function HomePage() {
     setSelectedOccurrence(null);
   }
 
-  function handleSaveOccurrenceException(exception: EventException) {
-    const nextExceptions = upsertCustomEventException(customEventExceptions, exception);
+  async function handleSaveOccurrenceException(exception: EventException) {
+    const didSave = await runSharedMutation(() => upsertSharedEventException(exception));
 
-    setCustomEventExceptions(nextExceptions);
-    saveCustomEventExceptions(nextExceptions);
+    if (!didSave) {
+      return;
+    }
+
+    setCustomEventExceptions(upsertCustomEventException(customEventExceptions, exception));
     setOccurrenceToEdit(null);
   }
 
-  function handleSaveTransportationPlan(plan: TransportationPlan) {
-    const nextPlans = upsertTransportationPlan(transportationPlans, plan);
+  async function handleSaveTransportationPlan(plan: TransportationPlan) {
+    const didSave = await runSharedMutation(() => upsertSharedTransportationPlan(plan));
 
-    setTransportationPlans(nextPlans);
-    saveTransportationPlans(nextPlans);
+    if (!didSave) {
+      return;
+    }
+
+    setTransportationPlans(upsertTransportationPlan(transportationPlans, plan));
     setTransportationOccurrence(null);
   }
 
-  function handleDeleteTransportationPlan() {
+  async function handleDeleteTransportationPlan() {
     if (transportationOccurrence === null) {
       return;
     }
 
-    const nextPlans = deleteTransportationPlan(transportationPlans, transportationOccurrence.eventId, transportationOccurrence.date);
+    const didSave = await runSharedMutation(() =>
+      deleteSharedTransportationPlan(transportationOccurrence.eventId, transportationOccurrence.date),
+    );
 
-    setTransportationPlans(nextPlans);
-    saveTransportationPlans(nextPlans);
+    if (!didSave) {
+      return;
+    }
+
+    setTransportationPlans(deleteTransportationPlan(transportationPlans, transportationOccurrence.eventId, transportationOccurrence.date));
     setTransportationOccurrence(null);
   }
 
-  function handleConfirmAction() {
+  async function handleConfirmAction() {
     if (pendingConfirmation === null) {
       return;
     }
@@ -285,28 +399,53 @@ export function HomePage() {
         date: pendingConfirmation.occurrence.date,
         type: 'cancelled',
       };
-      const nextExceptions = upsertCustomEventException(customEventExceptions, exception);
+      const didSave = await runSharedMutation(() => upsertSharedEventException(exception));
 
-      setCustomEventExceptions(nextExceptions);
-      saveCustomEventExceptions(nextExceptions);
+      if (!didSave) {
+        return;
+      }
+
+      setCustomEventExceptions(upsertCustomEventException(customEventExceptions, exception));
       setPendingConfirmation(null);
       return;
     }
 
-    const nextCustomEvents = deleteCustomEvent(customEvents, pendingConfirmation.eventId);
-    const nextExceptions =
+    const didSave = await runSharedMutation(() => deleteSharedEvent(pendingConfirmation.eventId));
+
+    if (!didSave) {
+      return;
+    }
+
+    setCustomEvents(deleteCustomEvent(customEvents, pendingConfirmation.eventId));
+    setCustomEventExceptions(
       pendingConfirmation.type === 'deleteSeries'
         ? deleteCustomEventExceptionsForEvent(customEventExceptions, pendingConfirmation.eventId)
-        : customEventExceptions;
-    const nextTransportationPlans = deleteTransportationPlansForEvent(transportationPlans, pendingConfirmation.eventId);
-
-    setCustomEvents(nextCustomEvents);
-    saveCustomEvents(nextCustomEvents);
-    setCustomEventExceptions(nextExceptions);
-    saveCustomEventExceptions(nextExceptions);
-    setTransportationPlans(nextTransportationPlans);
-    saveTransportationPlans(nextTransportationPlans);
+        : customEventExceptions,
+    );
+    setTransportationPlans(deleteTransportationPlansForEvent(transportationPlans, pendingConfirmation.eventId));
     setPendingConfirmation(null);
+  }
+
+  async function handleImportLocalData() {
+    setIsImportingLocalData(true);
+    const didSave = await runSharedMutation(() => importLocalFamilyData(localMigrationData));
+
+    if (!didSave) {
+      setIsImportingLocalData(false);
+      return;
+    }
+
+    const sharedState = await refreshSharedData(true);
+
+    if (sharedState !== null && isLocalMigrationConfirmed(localMigrationData, sharedState)) {
+      setIsMigrationDismissed(true);
+      setSharedDataInitialized(true);
+    } else {
+      setSharedDataStatus('issue');
+      setSharedDataError(t('sharedDataImportVerifyError'));
+    }
+
+    setIsImportingLocalData(false);
   }
 
   return (
@@ -325,6 +464,7 @@ export function HomePage() {
           />
           <div className="dashboard-header-tools">
             <UiPreferenceControls />
+            <SharedDataStatusIndicator status={sharedDataStatus} />
             <div className="dashboard-actions">
               <button className="add-event-button" type="button" onClick={() => setIsAddEventOpen(true)}>
                 {t('addEvent')}
@@ -343,8 +483,29 @@ export function HomePage() {
           showOnlyWithTransportation={showOnlyWithTransportation}
           onChildFilterChange={setChildFilter}
           onCategoryFilterChange={setCategoryFilter}
-        onShowOnlyWithTransportationChange={setShowOnlyWithTransportation}
+          onShowOnlyWithTransportationChange={setShowOnlyWithTransportation}
         />
+        {sharedDataError !== null ? (
+          <section className="shared-data-message" data-status="issue">
+            <span>{sharedDataError}</span>
+            <button type="button" onClick={() => void refreshSharedData(true)}>
+              {t('retry')}
+            </button>
+          </section>
+        ) : null}
+        {shouldShowMigrationNotice ? (
+          <section className="shared-data-message" data-status="migration">
+            <span>{t('localDataFound')}</span>
+            <div className="shared-data-message__actions">
+              <button type="button" onClick={() => void handleImportLocalData()} disabled={isImportingLocalData}>
+                {isImportingLocalData ? t('syncing') : t('importData')}
+              </button>
+              <button type="button" onClick={() => setIsMigrationDismissed(true)}>
+                {t('notNow')}
+              </button>
+            </div>
+          </section>
+        ) : null}
         {weeklyTransportationSummary.totalLegs > 0 ? (
           <section className="transportation-week-summary" aria-label={t('ridesThisWeek')}>
             <strong>
@@ -456,6 +617,16 @@ export function HomePage() {
         onConfirm={handleConfirmAction}
       />
     </main>
+  );
+}
+
+function SharedDataStatusIndicator({ status }: { status: SharedDataStatus }) {
+  const { t } = useUiPreferences();
+
+  return (
+    <span className="shared-data-status" data-status={status}>
+      {status === 'syncing' ? t('syncing') : status === 'issue' ? t('syncIssue') : t('shared')}
+    </span>
   );
 }
 
