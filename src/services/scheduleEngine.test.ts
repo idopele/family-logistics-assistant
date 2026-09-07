@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { eventExceptions } from '../data/eventExceptions';
+import { events as seedEvents } from '../data/events';
 import type { Event, EventException } from '../models';
 import { getOccurrencesForDate, getOccurrencesForRange } from './scheduleEngine';
 
@@ -45,6 +47,49 @@ describe('scheduleEngine', () => {
     expect(occurrences).toHaveLength(1);
     expect(occurrences[0]?.eventId).toBe('event-a');
     expect(occurrences[0]?.isException).toBe(false);
+  });
+
+  it('includes a one-time event inside a range alongside recurring events', () => {
+    const recurringEvent = makeEvent({
+      id: 'recurring-a',
+      date: null,
+      recurrence: { frequency: 'weekly', interval: 1, daysOfWeek: [2], startDate: '2026-09-06' },
+    });
+    const oneTimeEvent = makeEvent({
+      id: 'doctor-a',
+      title: 'Doctor',
+      category: 'doctor',
+      date: '2026-09-08',
+      startTime: '15:20',
+      endTime: null,
+      recurrence: null,
+    });
+
+    const occurrences = getOccurrencesForRange([recurringEvent, oneTimeEvent], [], '2026-09-06', '2026-09-12');
+
+    expect(occurrences.map((occurrence) => occurrence.eventId)).toEqual(['recurring-a', 'doctor-a']);
+    expect(occurrences[1]).toMatchObject({
+      eventId: 'doctor-a',
+      date: '2026-09-08',
+      startTime: '15:20',
+      endTime: null,
+    });
+  });
+
+  it('returns Daniel doctor seed event through range resolution', () => {
+    const occurrences = getOccurrencesForRange(seedEvents, eventExceptions, '2026-09-06', '2026-09-12');
+    const doctorOccurrence = occurrences.find((occurrence) => occurrence.eventId === 'daniel-doctor-20260908-1520');
+
+    expect(doctorOccurrence).toMatchObject({
+      childId: 'daniel',
+      date: '2026-09-08',
+      startTime: '15:20',
+      endTime: null,
+      title: 'בדיקת רופאה',
+      category: 'doctor',
+      location: null,
+      notes: null,
+    });
   });
 
   it('excludes a one-time event on another date', () => {
