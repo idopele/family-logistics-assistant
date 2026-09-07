@@ -11,7 +11,8 @@ interface DayScheduleProps {
   childrenById: Map<string, Child>;
   childFilter: ChildFilter;
   editableEventIds: Set<string>;
-  onCustomEventSelect: (eventId: string) => void;
+  customRecurringEventIds: Set<string>;
+  onCustomEventSelect: (occurrence: ScheduleOccurrence) => void;
   isToday: boolean;
 }
 
@@ -22,6 +23,7 @@ export function DaySchedule({
   childrenById,
   childFilter,
   editableEventIds,
+  customRecurringEventIds,
   onCustomEventSelect,
   isToday,
 }: DayScheduleProps) {
@@ -69,6 +71,7 @@ export function DaySchedule({
                       occurrence={occurrence}
                       child={child}
                       isEditable={editableEventIds.has(occurrence.eventId)}
+                      isRecurring={customRecurringEventIds.has(occurrence.eventId)}
                       onSelect={onCustomEventSelect}
                     />
                   ) : null;

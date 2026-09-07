@@ -127,8 +127,10 @@ function toOccurrence(event: Event, date: string): ScheduleOccurrence {
 function applyException(occurrence: ScheduleOccurrence, exception: EventException): ScheduleOccurrence {
   return {
     ...occurrence,
+    title: exception.title ?? occurrence.title,
     startTime: exception.startTime ?? occurrence.startTime,
     endTime: exception.endTime === undefined ? occurrence.endTime : exception.endTime,
+    endsNextDay: exception.endsNextDay ?? occurrence.endsNextDay,
     location: exception.location === undefined ? occurrence.location : exception.location,
     notes: exception.notes === undefined ? occurrence.notes : exception.notes,
     isException: true,

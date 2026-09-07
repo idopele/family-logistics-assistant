@@ -1,4 +1,4 @@
-import type { Event, EventCategory } from '../models';
+import type { Event, EventCategory, RecurrenceRule } from '../models';
 
 export const customEventsStorageKey = 'family-logistics-custom-events-v1';
 
@@ -95,19 +95,45 @@ function isStoredEvent(value: unknown): value is Event {
     typeof event.title === 'string' &&
     isEventCategory(event.category) &&
     (typeof event.customCategoryLabel === 'string' || event.customCategoryLabel === null || event.customCategoryLabel === undefined) &&
-    (typeof event.date === 'string' || event.date === null) &&
+    hasValidScheduleShape(event) &&
     typeof event.startTime === 'string' &&
     (typeof event.endTime === 'string' || event.endTime === null) &&
     (typeof event.endsNextDay === 'boolean' || event.endsNextDay === undefined) &&
     (typeof event.location === 'string' || event.location === null) &&
     (typeof event.notes === 'string' || event.notes === null) &&
-    (typeof event.recurrence === 'object' || event.recurrence === null) &&
     typeof event.requiresTransportation === 'boolean' &&
     (typeof event.pickupTime === 'string' || event.pickupTime === null) &&
     (typeof event.dropoffTime === 'string' || event.dropoffTime === null) &&
     typeof event.status === 'string' &&
     typeof event.createdAt === 'string' &&
     typeof event.updatedAt === 'string'
+  );
+}
+
+function hasValidScheduleShape(event: Partial<Event>): boolean {
+  const hasOneTimeDate = typeof event.date === 'string' && event.recurrence === null;
+  const hasRecurrence = event.date === null && isRecurrenceRule(event.recurrence);
+
+  return hasOneTimeDate || hasRecurrence;
+}
+
+function isRecurrenceRule(value: unknown): value is RecurrenceRule {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const recurrence = value as Partial<RecurrenceRule>;
+
+  return (
+    (recurrence.frequency === 'daily' || recurrence.frequency === 'weekly' || recurrence.frequency === 'monthly') &&
+    typeof recurrence.interval === 'number' &&
+    Number.isInteger(recurrence.interval) &&
+    recurrence.interval > 0 &&
+    typeof recurrence.startDate === 'string' &&
+    (typeof recurrence.endDate === 'string' || recurrence.endDate === null || recurrence.endDate === undefined) &&
+    (recurrence.daysOfWeek === undefined ||
+      (Array.isArray(recurrence.daysOfWeek) &&
+        recurrence.daysOfWeek.every((day) => Number.isInteger(day) && day >= 0 && day <= 6)))
   );
 }
 

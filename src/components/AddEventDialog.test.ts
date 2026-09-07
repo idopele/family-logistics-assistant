@@ -19,6 +19,13 @@ const validValues: AddEventFormValues = {
   customCategoryLabel: '',
   title: 'אירוע',
   date: '2026-09-12',
+  recurrenceMode: 'oneTime',
+  recurrenceStartDate: '2026-09-12',
+  recurrenceFrequency: 'weekly',
+  recurrenceInterval: '1',
+  recurrenceDaysOfWeek: [6],
+  recurrenceEndMode: 'none',
+  recurrenceEndDate: '',
   startTime: '18:00',
   endTime: '22:00',
   endsNextDay: false,
@@ -66,6 +73,61 @@ describe('AddEventDialog validation', () => {
           ...validValues,
           endTime: '',
           endsNextDay: true,
+        },
+        children,
+      ),
+    ).not.toBeNull();
+  });
+
+  it('creates a recurring event with date null and a recurrence rule', () => {
+    const event = buildEventFromFormValues(
+      {
+        ...validValues,
+        recurrenceMode: 'recurring',
+        recurrenceStartDate: '2026-09-13',
+        recurrenceFrequency: 'weekly',
+        recurrenceInterval: '2',
+        recurrenceDaysOfWeek: [0, 3],
+        recurrenceEndMode: 'date',
+        recurrenceEndDate: '2026-10-31',
+      },
+      null,
+      '2026-09-12T12:00:00.000Z',
+    );
+
+    expect(event.date).toBeNull();
+    expect(event.recurrence).toEqual({
+      frequency: 'weekly',
+      interval: 2,
+      startDate: '2026-09-13',
+      endDate: '2026-10-31',
+      daysOfWeek: [0, 3],
+    });
+  });
+
+  it('requires at least one weekday for weekly recurring events', () => {
+    expect(
+      validateAddEventForm(
+        {
+          ...validValues,
+          recurrenceMode: 'recurring',
+          recurrenceFrequency: 'weekly',
+          recurrenceDaysOfWeek: [],
+        },
+        children,
+      ),
+    ).not.toBeNull();
+  });
+
+  it('rejects recurring events whose end date is before the start date', () => {
+    expect(
+      validateAddEventForm(
+        {
+          ...validValues,
+          recurrenceMode: 'recurring',
+          recurrenceStartDate: '2026-09-20',
+          recurrenceEndMode: 'date',
+          recurrenceEndDate: '2026-09-19',
         },
         children,
       ),

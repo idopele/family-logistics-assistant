@@ -326,6 +326,78 @@ select {
   accent-color: #0f766e;
 }
 
+.recurrence-mode-field,
+.recurrence-controls,
+.weekday-field,
+.recurrence-end-field {
+  min-width: 0;
+  margin: 0;
+  border: 1px solid #dbe2ed;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  padding: 0.65rem;
+}
+
+.recurrence-mode-field legend,
+.recurrence-controls legend,
+.weekday-field legend,
+.recurrence-end-field legend {
+  color: #334155;
+  font-size: 0.88rem;
+  font-weight: 900;
+  padding: 0 0.25rem;
+}
+
+.recurrence-mode-field,
+.recurrence-end-field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.85rem;
+}
+
+.recurrence-mode-field label,
+.recurrence-end-field label {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.35rem;
+  color: #334155;
+  font-weight: 850;
+}
+
+.recurrence-controls {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.weekday-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.weekday-option {
+  min-height: 2.1rem;
+  border: 1px solid #cfd7e6;
+  border-radius: 0.45rem;
+  background: #ffffff;
+  color: #334155;
+  font-weight: 900;
+  padding: 0 0.7rem;
+}
+
+.weekday-option[data-selected='true'] {
+  border-color: #334155;
+  background: #334155;
+  color: #ffffff;
+}
+
+.recurrence-help {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
 .color-field {
   min-width: 0;
   margin: 0;
@@ -586,6 +658,16 @@ select {
   white-space: nowrap;
 }
 
+.event-card__recurring {
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #37315f;
+  font-size: 0.72rem;
+  font-weight: 900;
+  padding: 0.12rem 0.45rem;
+  white-space: nowrap;
+}
+
 .event-card__badge {
   border-radius: 999px;
   background: color-mix(in srgb, var(--child-color) 14%, white);
@@ -705,6 +787,7 @@ select {
 
 .event-details-dialog__edit,
 .event-details-dialog__delete,
+.event-details-dialog__close,
 .delete-event-dialog__confirm,
 .delete-event-dialog__cancel {
   min-height: 2.4rem;
@@ -724,6 +807,12 @@ select {
   border: 1px solid #b91c1c;
   background: #b91c1c;
   color: #ffffff;
+}
+
+.event-details-dialog__close {
+  border: 1px solid #cfd7e6;
+  background: #ffffff;
+  color: #334155;
 }
 
 .delete-event-dialog__cancel {

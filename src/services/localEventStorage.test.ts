@@ -49,6 +49,56 @@ describe('localEventStorage', () => {
     expect(loadCustomEvents()).toEqual([customEvent]);
   });
 
+  it('loads valid recurring custom events', () => {
+    vi.stubGlobal('localStorage', createMemoryStorage());
+    const recurringEvent: Event = {
+      ...customEvent,
+      id: 'custom-recurring-a',
+      date: null,
+      recurrence: {
+        frequency: 'weekly',
+        interval: 1,
+        startDate: '2026-09-13',
+        endDate: null,
+        daysOfWeek: [0, 3],
+      },
+    };
+
+    saveCustomEvents([recurringEvent]);
+
+    expect(loadCustomEvents()).toEqual([recurringEvent]);
+  });
+
+  it('rejects stored events with both date and recurrence', () => {
+    const storage = createMemoryStorage();
+    storage.setItem(
+      customEventsStorageKey,
+      JSON.stringify([
+        {
+          ...customEvent,
+          recurrence: {
+            frequency: 'weekly',
+            interval: 1,
+            startDate: '2026-09-13',
+            endDate: null,
+            daysOfWeek: [0],
+          },
+        },
+      ]),
+    );
+    vi.stubGlobal('localStorage', storage);
+
+    expect(loadCustomEvents()).toEqual([]);
+  });
+
+  it('rejects stored events with neither date nor recurrence', () => {
+    const storage = createMemoryStorage();
+    storage.setItem(customEventsStorageKey, JSON.stringify([{ ...customEvent, date: null, recurrence: null }]));
+    vi.stubGlobal('localStorage', storage);
+
+    expect(loadCustomEvents()).toEqual([]);
+  });
+
   it.each(['work', 'romanticDate', 'meal', 'privateLesson'] as const)('loads %s category custom events', (category) => {
     vi.stubGlobal('localStorage', createMemoryStorage());
     const event: Event = {

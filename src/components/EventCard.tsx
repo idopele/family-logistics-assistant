@@ -6,10 +6,11 @@ interface EventCardProps {
   occurrence: ScheduleOccurrence;
   child: Child;
   isEditable?: boolean;
-  onSelect?: (eventId: string) => void;
+  isRecurring?: boolean;
+  onSelect?: (occurrence: ScheduleOccurrence) => void;
 }
 
-export function EventCard({ occurrence, child, isEditable = false, onSelect }: EventCardProps) {
+export function EventCard({ occurrence, child, isEditable = false, isRecurring = false, onSelect }: EventCardProps) {
   const style = { '--child-color': child.color } as CSSProperties;
   const timeLabel = occurrence.endTime === null ? occurrence.startTime : `${occurrence.startTime}-${occurrence.endTime}`;
   const content = (
@@ -17,6 +18,7 @@ export function EventCard({ occurrence, child, isEditable = false, onSelect }: E
       <div className="event-card__topline">
         <span className="event-card__time">{timeLabel}</span>
         {occurrence.endsNextDay ? <span className="event-card__next-day">למחרת</span> : null}
+        {isRecurring ? <span className="event-card__recurring">חוזר</span> : null}
         <span className="event-card__badge">{getEventCategoryLabel(occurrence)}</span>
       </div>
       <div className="event-card__child">{child.name}</div>
@@ -28,7 +30,7 @@ export function EventCard({ occurrence, child, isEditable = false, onSelect }: E
 
   if (isEditable) {
     return (
-      <button className="event-card event-card--button" type="button" style={style} onClick={() => onSelect?.(occurrence.eventId)}>
+      <button className="event-card event-card--button" type="button" style={style} onClick={() => onSelect?.(occurrence)}>
         {content}
       </button>
     );

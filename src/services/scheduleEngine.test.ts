@@ -247,6 +247,32 @@ describe('scheduleEngine', () => {
     expect(getOccurrencesForDate([event], [exception], '2026-09-14')[0]?.endTime).toBeNull();
   });
 
+  it('applies title and endsNextDay overrides to only one occurrence', () => {
+    const event = makeEvent({
+      date: null,
+      recurrence: { frequency: 'daily', interval: 1, startDate: '2026-09-13', endDate: '2026-09-15' },
+      endTime: '10:00',
+    });
+    const exception = makeException({
+      date: '2026-09-14',
+      title: 'Updated title',
+      startTime: '23:00',
+      endTime: '01:00',
+      endsNextDay: true,
+    });
+    const occurrences = getOccurrencesForRange([event], [exception], '2026-09-13', '2026-09-15');
+
+    expect(occurrences[1]).toMatchObject({
+      title: 'Updated title',
+      startTime: '23:00',
+      endTime: '01:00',
+      endsNextDay: true,
+      isException: true,
+    });
+    expect(occurrences[0]).toMatchObject({ title: 'School', endsNextDay: false, isException: false });
+    expect(occurrences[2]).toMatchObject({ title: 'School', endsNextDay: false, isException: false });
+  });
+
   it('sorts multiple children and events deterministically', () => {
     const events = [
       makeEvent({ id: 'event-b', childId: 'child-b', startTime: '08:00' }),
