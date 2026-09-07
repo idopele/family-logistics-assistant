@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { eventCategories } from '../data/eventCategories';
 import type { Child, Event, EventCategory } from '../models';
 import { isValidDate, isValidTime } from '../utils/dateTime';
@@ -6,13 +6,15 @@ import { isValidDate, isValidTime } from '../utils/dateTime';
 interface AddEventDialogProps {
   isOpen: boolean;
   children: Child[];
+  eventToEdit?: Event | null;
   onClose: () => void;
   onSave: (event: Event) => void;
 }
 
 export interface AddEventFormValues {
   childId: string;
-  category: ManualEventCategory;
+  category: ManualCategorySelection;
+  customCategoryLabel: string;
   title: string;
   date: string;
   startTime: string;
@@ -23,6 +25,7 @@ export interface AddEventFormValues {
 }
 
 type ManualEventCategory = Exclude<EventCategory, 'school'>;
+type ManualCategorySelection = ManualEventCategory | 'custom';
 
 const manualCategories: ManualEventCategory[] = [
   'basketball',
@@ -34,6 +37,9 @@ const manualCategories: ManualEventCategory[] = [
   'haircut',
   'friends',
   'family',
+  'work',
+  'romanticDate',
+  'meal',
   'birthday',
   'exam',
   'transportation',
@@ -46,6 +52,7 @@ const manualCategories: ManualEventCategory[] = [
 const initialValues: AddEventFormValues = {
   childId: 'daniel',
   category: 'other',
+  customCategoryLabel: '',
   title: '',
   date: '',
   startTime: '',
@@ -55,9 +62,19 @@ const initialValues: AddEventFormValues = {
   notes: '',
 };
 
-export function AddEventDialog({ isOpen, children, onClose, onSave }: AddEventDialogProps) {
+export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave }: AddEventDialogProps) {
   const [values, setValues] = useState<AddEventFormValues>(initialValues);
   const [error, setError] = useState<string | null>(null);
+  const isEditMode = eventToEdit !== null && eventToEdit !== undefined;
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    setValues(eventToEdit ? getFormValuesFromEvent(eventToEdit) : getInitialValues(children));
+    setError(null);
+  }, [children, eventToEdit, isOpen]);
 
   if (!isOpen) {
     return null;
@@ -73,26 +90,7 @@ export function AddEventDialog({ isOpen, children, onClose, onSave }: AddEventDi
       return;
     }
 
-    const timestamp = new Date().toISOString();
-    const nextEvent: Event = {
-      id: createEventId(),
-      childId: values.childId,
-      title: values.title.trim(),
-      category: values.category,
-      date: values.date,
-      startTime: values.startTime,
-      endTime: values.endTime === '' ? null : values.endTime,
-      endsNextDay: values.endTime === '' ? false : values.endsNextDay,
-      location: nullableText(values.location),
-      notes: nullableText(values.notes),
-      recurrence: null,
-      requiresTransportation: false,
-      pickupTime: null,
-      dropoffTime: null,
-      status: 'scheduled',
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    };
+    const nextEvent = buildEventFromFormValues(values, eventToEdit);
 
     onSave(nextEvent);
     setValues(initialValues);
@@ -109,7 +107,7 @@ export function AddEventDialog({ isOpen, children, onClose, onSave }: AddEventDi
     <div className="dialog-backdrop" role="presentation">
       <section className="add-event-dialog" role="dialog" aria-modal="true" aria-labelledby="add-event-title">
         <header className="add-event-dialog__header">
-          <h2 id="add-event-title">הוסף אירוע</h2>
+          <h2 id="add-event-title">{isEditMode ? 'עריכת אירוע' : 'הוסף אירוע'}</h2>
         </header>
         <form className="add-event-form" onSubmit={handleSubmit}>
           <label className="form-field">
@@ -127,15 +125,34 @@ export function AddEventDialog({ isOpen, children, onClose, onSave }: AddEventDi
             <span>סוג אירוע</span>
             <select
               value={values.category}
-              onChange={(event) => setValues({ ...values, category: event.target.value as ManualEventCategory })}
+              onChange={(event) => {
+                const category = event.target.value as ManualCategorySelection;
+
+                setValues({
+                  ...values,
+                  category,
+                  customCategoryLabel: category === 'custom' ? values.customCategoryLabel : '',
+                });
+              }}
             >
               {manualCategories.map((category) => (
                 <option key={category} value={category}>
                   {eventCategories[category]}
                 </option>
               ))}
+              <option value="custom">סוג פעילות אחר...</option>
             </select>
           </label>
+
+          {values.category === 'custom' ? (
+            <label className="form-field">
+              <span>שם סוג הפעילות</span>
+              <input
+                value={values.customCategoryLabel}
+                onChange={(event) => setValues({ ...values, customCategoryLabel: event.target.value })}
+              />
+            </label>
+          ) : null}
 
           <label className="form-field">
             <span>כותרת</span>
@@ -194,7 +211,7 @@ export function AddEventDialog({ isOpen, children, onClose, onSave }: AddEventDi
 
           <div className="add-event-form__actions">
             <button className="add-event-form__save" type="submit">
-              שמור אירוע
+              {isEditMode ? 'שמור שינויים' : 'שמור אירוע'}
             </button>
             <button className="add-event-form__cancel" type="button" onClick={handleCancel}>
               ביטול
@@ -206,9 +223,38 @@ export function AddEventDialog({ isOpen, children, onClose, onSave }: AddEventDi
   );
 }
 
+function getInitialValues(children: Child[]): AddEventFormValues {
+  return {
+    ...initialValues,
+    childId: children[0]?.id ?? '',
+  };
+}
+
+function getFormValuesFromEvent(event: Event): AddEventFormValues {
+  const hasCustomCategoryLabel =
+    event.category === 'other' && event.customCategoryLabel !== null && event.customCategoryLabel.trim() !== '';
+
+  return {
+    childId: event.childId,
+    category: hasCustomCategoryLabel ? 'custom' : event.category === 'school' ? 'other' : event.category,
+    customCategoryLabel: event.customCategoryLabel ?? '',
+    title: event.title,
+    date: event.date ?? '',
+    startTime: event.startTime,
+    endTime: event.endTime ?? '',
+    endsNextDay: event.endsNextDay,
+    location: event.location ?? '',
+    notes: event.notes ?? '',
+  };
+}
+
 export function validateAddEventForm(values: AddEventFormValues, children: Child[]): string | null {
   if (values.childId === '' || !children.some((child) => child.id === values.childId)) {
     return 'בחרו ילד.';
+  }
+
+  if (values.category === 'custom' && values.customCategoryLabel.trim() === '') {
+    return 'יש להזין שם סוג פעילות.';
   }
 
   if (values.title.trim() === '') {
@@ -236,6 +282,36 @@ export function validateAddEventForm(values: AddEventFormValues, children: Child
   }
 
   return null;
+}
+
+export function buildEventFromFormValues(
+  values: AddEventFormValues,
+  eventToEdit: Event | null = null,
+  timestamp = new Date().toISOString(),
+): Event {
+  const category: EventCategory = values.category === 'custom' ? 'other' : values.category;
+  const customCategoryLabel = values.category === 'custom' ? values.customCategoryLabel.trim() : null;
+
+  return {
+    id: eventToEdit?.id ?? createEventId(),
+    childId: values.childId,
+    title: values.title.trim(),
+    category,
+    customCategoryLabel,
+    date: values.date,
+    startTime: values.startTime,
+    endTime: values.endTime === '' ? null : values.endTime,
+    endsNextDay: values.endTime === '' ? false : values.endsNextDay,
+    location: nullableText(values.location),
+    notes: nullableText(values.notes),
+    recurrence: null,
+    requiresTransportation: false,
+    pickupTime: null,
+    dropoffTime: null,
+    status: 'scheduled',
+    createdAt: eventToEdit?.createdAt ?? timestamp,
+    updatedAt: timestamp,
+  };
 }
 
 function nullableText(value: string): string | null {

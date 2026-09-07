@@ -6,6 +6,7 @@ export interface Event {
   childId: string;
   title: string;
   category: EventCategory;
+  customCategoryLabel: string | null;
   /** YYYY-MM-DD for a one-time event; recurring events may use null. */
   date: string | null;
   /** Required local 24-hour HH:mm start time. */

@@ -7,6 +7,7 @@ export interface ScheduleOccurrence {
   date: string;
   title: string;
   category: EventCategory;
+  customCategoryLabel: string | null;
   startTime: string;
   endTime: string | null;
   endsNextDay: boolean;

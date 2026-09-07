@@ -13,6 +13,9 @@ const eventCategories: EventCategory[] = [
   'haircut',
   'friends',
   'family',
+  'work',
+  'romanticDate',
+  'meal',
   'birthday',
   'exam',
   'transportation',
@@ -67,6 +70,14 @@ export function saveCustomEvents(events: Event[]): void {
   storage.setItem(customEventsStorageKey, JSON.stringify(events));
 }
 
+export function updateCustomEvent(events: Event[], updatedEvent: Event): Event[] {
+  return events.map((event) => (event.id === updatedEvent.id ? updatedEvent : event));
+}
+
+export function deleteCustomEvent(events: Event[], eventId: string): Event[] {
+  return events.filter((event) => event.id !== eventId);
+}
+
 function getStorage(): Storage | null {
   return typeof globalThis.localStorage === 'undefined' ? null : globalThis.localStorage;
 }
@@ -83,6 +94,7 @@ function isStoredEvent(value: unknown): value is Event {
     typeof event.childId === 'string' &&
     typeof event.title === 'string' &&
     isEventCategory(event.category) &&
+    (typeof event.customCategoryLabel === 'string' || event.customCategoryLabel === null || event.customCategoryLabel === undefined) &&
     (typeof event.date === 'string' || event.date === null) &&
     typeof event.startTime === 'string' &&
     (typeof event.endTime === 'string' || event.endTime === null) &&
@@ -107,6 +119,7 @@ function migrateStoredEvent(event: Event): Event {
   const eventWithOvernightFlag = {
     ...event,
     endsNextDay: event.endsNextDay ?? false,
+    customCategoryLabel: event.customCategoryLabel ?? null,
   };
 
   if (eventWithOvernightFlag.category === 'other' && parentMeetingTitles.includes(eventWithOvernightFlag.title)) {
@@ -122,6 +135,8 @@ function migrateStoredEvent(event: Event): Event {
 function hasMigratedEvents(originalEvents: Event[], migratedEvents: Event[]): boolean {
   return originalEvents.some(
     (event, index) =>
-      event.category !== migratedEvents[index]?.category || event.endsNextDay !== migratedEvents[index]?.endsNextDay,
+      event.category !== migratedEvents[index]?.category ||
+      event.endsNextDay !== migratedEvents[index]?.endsNextDay ||
+      event.customCategoryLabel !== migratedEvents[index]?.customCategoryLabel,
   );
 }

@@ -548,6 +548,18 @@ select {
   box-shadow: 0 0.35rem 0.9rem rgb(16 24 39 / 6%);
 }
 
+.event-card--button {
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+}
+
+.event-card--button:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
 .event-card__topline {
   align-items: center;
   display: flex;
@@ -602,6 +614,128 @@ select {
   color: #586272;
   font-size: 0.85rem;
   font-weight: 650;
+}
+
+.event-card__edit-cue {
+  display: inline-block;
+  margin-top: 0.45rem;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.event-details-dialog,
+.delete-event-dialog {
+  width: min(100%, 34rem);
+  border: 1px solid #dbe2ed;
+  border-radius: 0.65rem;
+  background: #ffffff;
+  box-shadow: 0 1.5rem 4rem rgb(15 23 42 / 28%);
+  padding: 1rem;
+}
+
+.event-details-dialog__header {
+  align-items: start;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.event-details-dialog__header h2,
+.delete-event-dialog h2 {
+  margin: 0;
+  color: #101827;
+  font-size: 1.35rem;
+}
+
+.dialog-close-button {
+  min-height: 2rem;
+  border: 1px solid #cfd7e6;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  color: #334155;
+  font-weight: 900;
+  padding: 0 0.75rem;
+}
+
+.event-details-list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 1rem 0;
+}
+
+.event-details-list div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.event-details-list dt {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.event-details-list dd {
+  margin: 0;
+  color: #172033;
+  font-weight: 800;
+}
+
+.event-details-list__time {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.event-details-list__next-day {
+  margin-inline-start: 0.5rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 900;
+  padding: 0.12rem 0.45rem;
+}
+
+.event-details-dialog__actions,
+.delete-event-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.event-details-dialog__edit,
+.event-details-dialog__delete,
+.delete-event-dialog__confirm,
+.delete-event-dialog__cancel {
+  min-height: 2.4rem;
+  border-radius: 0.5rem;
+  font-weight: 900;
+  padding: 0 0.9rem;
+}
+
+.event-details-dialog__edit {
+  border: 1px solid #0f766e;
+  background: #0f766e;
+  color: #ffffff;
+}
+
+.event-details-dialog__delete,
+.delete-event-dialog__confirm {
+  border: 1px solid #b91c1c;
+  background: #b91c1c;
+  color: #ffffff;
+}
+
+.delete-event-dialog__cancel {
+  border: 1px solid #cfd7e6;
+  background: #ffffff;
+  color: #334155;
+}
+
+.delete-event-dialog p {
+  margin: 0.6rem 0 1rem;
+  color: #334155;
+  font-weight: 800;
 }
 
 @media (min-width: 48rem) {

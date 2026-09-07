@@ -5,7 +5,21 @@ import type { Child, EventCategory } from '../models';
 export type ChildFilter = 'all' | string;
 export type CategoryFilter =
   | 'all'
-  | Extract<EventCategory, 'school' | 'basketball' | 'dance' | 'doctor' | 'parentMeeting' | 'performance' | 'openPractice'>;
+  | Extract<
+      EventCategory,
+      | 'school'
+      | 'basketball'
+      | 'dance'
+      | 'doctor'
+      | 'parentMeeting'
+      | 'performance'
+      | 'openPractice'
+      | 'privateLesson'
+      | 'work'
+      | 'friends'
+      | 'meal'
+      | 'other'
+    >;
 
 interface ScheduleFiltersProps {
   children: Child[];
@@ -24,6 +38,11 @@ const categoryFilterValues: CategoryFilter[] = [
   'parentMeeting',
   'performance',
   'openPractice',
+  'privateLesson',
+  'work',
+  'friends',
+  'meal',
+  'other',
 ];
 
 export function ScheduleFilters({

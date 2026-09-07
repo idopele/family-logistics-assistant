@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { getEventCategoryLabel } from '../data/eventCategories';
 import type { Child } from '../models';
-import { type AddEventFormValues, validateAddEventForm } from './AddEventDialog';
+import type { Event } from '../models';
+import { buildEventFromFormValues, type AddEventFormValues, validateAddEventForm } from './AddEventDialog';
 
 const children: Child[] = [
   {
@@ -14,6 +16,7 @@ const children: Child[] = [
 const validValues: AddEventFormValues = {
   childId: 'daniel',
   category: 'other',
+  customCategoryLabel: '',
   title: 'אירוע',
   date: '2026-09-12',
   startTime: '18:00',
@@ -67,5 +70,63 @@ describe('AddEventDialog validation', () => {
         children,
       ),
     ).not.toBeNull();
+  });
+
+  it('requires a custom activity label when custom category is selected', () => {
+    expect(validateAddEventForm({ ...validValues, category: 'custom', customCategoryLabel: '   ' }, children)).not.toBeNull();
+  });
+
+  it('stores custom activity type as other with customCategoryLabel', () => {
+    const event = buildEventFromFormValues(
+      {
+        ...validValues,
+        category: 'custom',
+        customCategoryLabel: 'חוג צילום',
+      },
+      null,
+      '2026-09-12T12:00:00.000Z',
+    );
+
+    expect(event).toMatchObject({
+      category: 'other',
+      customCategoryLabel: 'חוג צילום',
+    });
+  });
+
+  it('editing custom event updates customCategoryLabel', () => {
+    const existingEvent: Event = buildEventFromFormValues(
+      { ...validValues, category: 'custom', customCategoryLabel: 'טיפול' },
+      null,
+      '2026-09-12T12:00:00.000Z',
+    );
+    const updatedEvent = buildEventFromFormValues(
+      { ...validValues, category: 'custom', customCategoryLabel: 'מסיבה' },
+      existingEvent,
+      '2026-09-12T13:00:00.000Z',
+    );
+
+    expect(updatedEvent).toMatchObject({
+      id: existingEvent.id,
+      category: 'other',
+      customCategoryLabel: 'מסיבה',
+    });
+  });
+
+  it('clears customCategoryLabel when changing a custom event to a predefined category', () => {
+    const existingEvent: Event = buildEventFromFormValues(
+      { ...validValues, category: 'custom', customCategoryLabel: 'טיפול' },
+      null,
+      '2026-09-12T12:00:00.000Z',
+    );
+    const updatedEvent = buildEventFromFormValues({ ...validValues, category: 'work' }, existingEvent, '2026-09-12T13:00:00.000Z');
+
+    expect(updatedEvent).toMatchObject({
+      category: 'work',
+      customCategoryLabel: null,
+    });
+  });
+
+  it('displays friends with the updated Hebrew label', () => {
+    expect(getEventCategoryLabel({ category: 'friends', customCategoryLabel: null })).toBe('פגישה עם חברים');
   });
 });

@@ -10,10 +10,21 @@ interface DayScheduleProps {
   occurrences: ScheduleOccurrence[];
   childrenById: Map<string, Child>;
   childFilter: ChildFilter;
+  editableEventIds: Set<string>;
+  onCustomEventSelect: (eventId: string) => void;
   isToday: boolean;
 }
 
-export function DaySchedule({ label, date, occurrences, childrenById, childFilter, isToday }: DayScheduleProps) {
+export function DaySchedule({
+  label,
+  date,
+  occurrences,
+  childrenById,
+  childFilter,
+  editableEventIds,
+  onCustomEventSelect,
+  isToday,
+}: DayScheduleProps) {
   const schoolOccurrences = occurrences.filter((occurrence) => occurrence.category === 'school');
   const afternoonOccurrences = occurrences.filter((occurrence) => occurrence.category !== 'school');
 
@@ -53,7 +64,13 @@ export function DaySchedule({ label, date, occurrences, childrenById, childFilte
                   const child = childrenById.get(occurrence.childId);
 
                   return child ? (
-                    <EventCard key={`${occurrence.eventId}-${occurrence.date}`} occurrence={occurrence} child={child} />
+                    <EventCard
+                      key={`${occurrence.eventId}-${occurrence.date}`}
+                      occurrence={occurrence}
+                      child={child}
+                      isEditable={editableEventIds.has(occurrence.eventId)}
+                      onSelect={onCustomEventSelect}
+                    />
                   ) : null;
                 })}
               </ScheduleSection>

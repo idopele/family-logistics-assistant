@@ -9,6 +9,7 @@ const baseEvent: Event = {
   childId: 'child-a',
   title: 'School',
   category: 'school',
+  customCategoryLabel: null,
   date: '2026-09-07',
   startTime: '08:00',
   endTime: '13:00',
@@ -60,6 +61,7 @@ describe('scheduleEngine', () => {
       id: 'doctor-a',
       title: 'Doctor',
       category: 'doctor',
+      customCategoryLabel: null,
       date: '2026-09-08',
       startTime: '15:20',
       endTime: null,
@@ -88,6 +90,15 @@ describe('scheduleEngine', () => {
     expect(getOccurrencesForDate([overnightEvent], [], '2026-09-12')[0]?.endsNextDay).toBe(true);
   });
 
+  it('preserves customCategoryLabel in schedule occurrences', () => {
+    const customTypeEvent = makeEvent({
+      category: 'other',
+      customCategoryLabel: 'טיפול',
+    });
+
+    expect(getOccurrencesForDate([customTypeEvent], [], '2026-09-07')[0]?.customCategoryLabel).toBe('טיפול');
+  });
+
   it('returns Daniel doctor seed event through range resolution', () => {
     const occurrences = getOccurrencesForRange(seedEvents, eventExceptions, '2026-09-06', '2026-09-12');
     const doctorOccurrence = occurrences.find((occurrence) => occurrence.eventId === 'daniel-doctor-20260908-1520');
@@ -99,6 +110,7 @@ describe('scheduleEngine', () => {
       endTime: null,
       title: 'בדיקת רופאה',
       category: 'doctor',
+      customCategoryLabel: null,
       location: null,
       notes: null,
     });

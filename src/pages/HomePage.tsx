@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { AddChildDialog } from '../components/AddChildDialog';
 import { AddEventDialog } from '../components/AddEventDialog';
 import { DaySchedule } from '../components/DaySchedule';
+import { DeleteEventDialog } from '../components/DeleteEventDialog';
+import { EventDetailsDialog } from '../components/EventDetailsDialog';
 import { ScheduleFilters, type CategoryFilter, type ChildFilter } from '../components/ScheduleFilters';
 import { WeekNavigation } from '../components/WeekNavigation';
 import { children as seedChildren } from '../data/children';
@@ -9,7 +11,7 @@ import { eventExceptions } from '../data/eventExceptions';
 import { events } from '../data/events';
 import type { Child, Event } from '../models';
 import { loadCustomChildren, saveCustomChildren } from '../services/localChildStorage';
-import { loadCustomEvents, saveCustomEvents } from '../services/localEventStorage';
+import { deleteCustomEvent, loadCustomEvents, saveCustomEvents, updateCustomEvent } from '../services/localEventStorage';
 import { getOccurrencesForRange } from '../services/scheduleEngine';
 import {
   formatWeekRange,
@@ -28,12 +30,24 @@ export function HomePage() {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [isAddEventOpen, setIsAddEventOpen] = useState(false);
   const [isAddChildOpen, setIsAddChildOpen] = useState(false);
+  const [eventIdForDetails, setEventIdForDetails] = useState<string | null>(null);
+  const [eventToEdit, setEventToEdit] = useState<Event | null>(null);
+  const [eventIdForDelete, setEventIdForDelete] = useState<string | null>(null);
   const [customEvents, setCustomEvents] = useState<Event[]>(() => loadCustomEvents());
   const [customChildren, setCustomChildren] = useState<Child[]>(() => loadCustomChildren());
   const weekDays = useMemo(() => getWorkWeekDays(weekStartDate), [weekStartDate]);
   const activeChildren = useMemo(() => [...seedChildren, ...customChildren].filter((child) => child.isActive), [customChildren]);
   const childrenById = useMemo(() => new Map(activeChildren.map((child) => [child.id, child])), [activeChildren]);
   const allEvents = useMemo(() => [...events, ...customEvents], [customEvents]);
+  const editableEventIds = useMemo(() => new Set(customEvents.map((event) => event.id)), [customEvents]);
+  const selectedCustomEvent = useMemo(
+    () => customEvents.find((event) => event.id === eventIdForDetails) ?? null,
+    [customEvents, eventIdForDetails],
+  );
+  const customEventForDelete = useMemo(
+    () => customEvents.find((event) => event.id === eventIdForDelete) ?? null,
+    [customEvents, eventIdForDelete],
+  );
   const weekOccurrences = useMemo(() => {
     const weekEndDate = weekDays[weekDays.length - 1]?.date ?? weekStartDate;
 
@@ -53,12 +67,51 @@ export function HomePage() {
     setIsAddEventOpen(false);
   }
 
+  function handleSaveEditedEvent(event: Event) {
+    const nextCustomEvents = updateCustomEvent(customEvents, event);
+
+    setCustomEvents(nextCustomEvents);
+    saveCustomEvents(nextCustomEvents);
+    setEventToEdit(null);
+    setEventIdForDetails(null);
+  }
+
   function handleSaveCustomChild(child: Child) {
     const nextCustomChildren = [...customChildren, child];
 
     setCustomChildren(nextCustomChildren);
     saveCustomChildren(nextCustomChildren);
     setIsAddChildOpen(false);
+  }
+
+  function handleEditSelectedEvent() {
+    if (selectedCustomEvent === null) {
+      return;
+    }
+
+    setEventToEdit(selectedCustomEvent);
+    setEventIdForDetails(null);
+  }
+
+  function handleDeleteSelectedEvent() {
+    if (selectedCustomEvent === null) {
+      return;
+    }
+
+    setEventIdForDelete(selectedCustomEvent.id);
+    setEventIdForDetails(null);
+  }
+
+  function handleConfirmDeleteEvent() {
+    if (eventIdForDelete === null) {
+      return;
+    }
+
+    const nextCustomEvents = deleteCustomEvent(customEvents, eventIdForDelete);
+
+    setCustomEvents(nextCustomEvents);
+    saveCustomEvents(nextCustomEvents);
+    setEventIdForDelete(null);
   }
 
   return (
@@ -101,6 +154,8 @@ export function HomePage() {
             occurrences={weekOccurrences.filter((occurrence) => occurrence.date === day.date)}
             childrenById={childrenById}
             childFilter={childFilter}
+            editableEventIds={editableEventIds}
+            onCustomEventSelect={setEventIdForDetails}
             isToday={isDateInWorkWeek(today, weekStartDate) && today === day.date}
           />
         ))}
@@ -111,7 +166,26 @@ export function HomePage() {
         onClose={() => setIsAddEventOpen(false)}
         onSave={handleSaveCustomEvent}
       />
+      <AddEventDialog
+        isOpen={eventToEdit !== null}
+        children={activeChildren}
+        eventToEdit={eventToEdit}
+        onClose={() => setEventToEdit(null)}
+        onSave={handleSaveEditedEvent}
+      />
       <AddChildDialog isOpen={isAddChildOpen} onClose={() => setIsAddChildOpen(false)} onSave={handleSaveCustomChild} />
+      <EventDetailsDialog
+        event={selectedCustomEvent}
+        child={selectedCustomEvent === null ? null : childrenById.get(selectedCustomEvent.childId) ?? null}
+        onClose={() => setEventIdForDetails(null)}
+        onEdit={handleEditSelectedEvent}
+        onDelete={handleDeleteSelectedEvent}
+      />
+      <DeleteEventDialog
+        event={customEventForDelete}
+        onCancel={() => setEventIdForDelete(null)}
+        onConfirm={handleConfirmDeleteEvent}
+      />
     </main>
   );
 }

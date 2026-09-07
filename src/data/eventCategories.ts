@@ -9,8 +9,11 @@ export const eventCategories: Record<EventCategory, string> = {
   doctor: 'רופא',
   dentist: 'רופא שיניים',
   haircut: 'תספורת',
-  friends: 'חברים',
+  friends: 'פגישה עם חברים',
   family: 'משפחה',
+  work: 'עבודה',
+  romanticDate: 'DATE',
+  meal: 'ארוחה',
   birthday: 'יום הולדת',
   exam: 'מבחן',
   transportation: 'הסעה',
@@ -19,3 +22,11 @@ export const eventCategories: Record<EventCategory, string> = {
   openPractice: 'אימון פתוח',
   other: 'אחר',
 };
+
+export function getEventCategoryLabel(event: { category: EventCategory; customCategoryLabel: string | null }): string {
+  if (event.category === 'other' && event.customCategoryLabel !== null && event.customCategoryLabel.trim() !== '') {
+    return event.customCategoryLabel;
+  }
+
+  return eventCategories[event.category];
+}

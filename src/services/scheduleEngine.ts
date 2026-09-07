@@ -110,6 +110,7 @@ function toOccurrence(event: Event, date: string): ScheduleOccurrence {
     date,
     title: event.title,
     category: event.category,
+    customCategoryLabel: event.customCategoryLabel,
     startTime: event.startTime,
     endTime: event.endTime,
     endsNextDay: event.endsNextDay,
