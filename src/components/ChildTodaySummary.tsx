@@ -11,7 +11,12 @@ export function ChildTodaySummary({ summary }: ChildTodaySummaryProps) {
 
   return (
     <article className="child-today-card" style={style}>
-      <h3>{summary.child.name}</h3>
+      <div className="child-today-card__header">
+        <span className="child-today-card__avatar" aria-hidden="true">
+          {summary.child.name.trim().charAt(0)}
+        </span>
+        <h3>{summary.child.name}</h3>
+      </div>
       {summary.nextOccurrence !== null ? (
         <p>
           הבא: {formatActionCenterTime(summary.nextOccurrence)} {summary.nextOccurrence.title}

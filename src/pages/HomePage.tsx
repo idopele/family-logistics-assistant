@@ -308,16 +308,26 @@ export function HomePage() {
   return (
     <main className="dashboard-page" aria-labelledby="app-title">
       <header className="dashboard-top">
-        <div className="dashboard-header">
-          <h1 id="app-title">Family Logistics Assistant</h1>
-          <p>הלו״ז המשפחתי</p>
+        <div className="dashboard-top__main">
+          <div className="dashboard-header">
+            <p>הלו״ז המשפחתי</p>
+            <h1 id="app-title">Family Logistics Assistant</h1>
+          </div>
+          <WeekNavigation
+            weekLabel={formatWeekRange(weekStartDate)}
+            onPreviousWeek={() => setWeekStartDate(getPreviousWeekStart(weekStartDate))}
+            onCurrentWeek={() => setWeekStartDate(getSundayOfWeek(today))}
+            onNextWeek={() => setWeekStartDate(getNextWeekStart(weekStartDate))}
+          />
+          <div className="dashboard-actions">
+            <button className="add-event-button" type="button" onClick={() => setIsAddEventOpen(true)}>
+              + הוסף אירוע
+            </button>
+            <button className="add-child-button" type="button" onClick={() => setIsAddChildOpen(true)}>
+              + הוסף ילד
+            </button>
+          </div>
         </div>
-        <WeekNavigation
-          weekLabel={formatWeekRange(weekStartDate)}
-          onPreviousWeek={() => setWeekStartDate(getPreviousWeekStart(weekStartDate))}
-          onCurrentWeek={() => setWeekStartDate(getSundayOfWeek(today))}
-          onNextWeek={() => setWeekStartDate(getNextWeekStart(weekStartDate))}
-        />
 
         <ScheduleFilters
           children={activeChildren}
@@ -337,14 +347,6 @@ export function HomePage() {
           </section>
         ) : null}
         <TransportationConflicts conflicts={transportationConflicts} />
-        <div className="dashboard-actions">
-          <button className="add-event-button" type="button" onClick={() => setIsAddEventOpen(true)}>
-            + הוסף אירוע
-          </button>
-          <button className="add-child-button" type="button" onClick={() => setIsAddChildOpen(true)}>
-            + הוסף ילד
-          </button>
-        </div>
       </header>
 
       <FamilyActionCenter
@@ -356,22 +358,28 @@ export function HomePage() {
         onOccurrenceSelect={setSelectedOccurrence}
       />
 
-      <section className="weekly-grid" aria-label="לוח שבועי">
-        {weekDays.map((day) => (
-          <DaySchedule
-            key={day.date}
-            label={day.label}
-            date={day.date}
-            occurrences={weekOccurrences.filter((occurrence) => occurrence.date === day.date)}
-            childrenById={childrenById}
-            childFilter={childFilter}
-            editableEventIds={editableEventIds}
-            customRecurringEventIds={customRecurringEventIds}
-            transportationPlansByOccurrence={transportationPlansByOccurrence}
-            onOccurrenceSelect={setSelectedOccurrence}
-            isToday={isDateInWorkWeek(today, weekStartDate) && today === day.date}
-          />
-        ))}
+      <section className="weekly-schedule" aria-labelledby="weekly-schedule-title">
+        <div className="weekly-schedule__header">
+          <h2 id="weekly-schedule-title">השבוע</h2>
+          <span>{formatWeekRange(weekStartDate)}</span>
+        </div>
+        <div className="weekly-grid" aria-label="לוח שבועי">
+          {weekDays.map((day) => (
+            <DaySchedule
+              key={day.date}
+              label={day.label}
+              date={day.date}
+              occurrences={weekOccurrences.filter((occurrence) => occurrence.date === day.date)}
+              childrenById={childrenById}
+              childFilter={childFilter}
+              editableEventIds={editableEventIds}
+              customRecurringEventIds={customRecurringEventIds}
+              transportationPlansByOccurrence={transportationPlansByOccurrence}
+              onOccurrenceSelect={setSelectedOccurrence}
+              isToday={isDateInWorkWeek(today, weekStartDate) && today === day.date}
+            />
+          ))}
+        </div>
       </section>
       <AddEventDialog
         isOpen={isAddEventOpen}
