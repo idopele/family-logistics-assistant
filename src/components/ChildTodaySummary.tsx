@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { useUiPreferences } from '../i18n';
 import type { ChildTodaySummaryData } from '../services/familyActionCenter';
 import { formatActionCenterTime } from '../services/familyActionCenter';
 
@@ -7,6 +8,7 @@ interface ChildTodaySummaryProps {
 }
 
 export function ChildTodaySummary({ summary }: ChildTodaySummaryProps) {
+  const { t } = useUiPreferences();
   const style = { '--child-color': summary.child.color } as CSSProperties;
 
   return (
@@ -19,14 +21,14 @@ export function ChildTodaySummary({ summary }: ChildTodaySummaryProps) {
       </div>
       {summary.nextOccurrence !== null ? (
         <p>
-          הבא: {formatActionCenterTime(summary.nextOccurrence)} {summary.nextOccurrence.title}
+          {t('nextActivity')} <time>{formatActionCenterTime(summary.nextOccurrence)}</time> {summary.nextOccurrence.title}
         </p>
       ) : summary.hasNonSchoolOccurrencesToday ? (
-        <p>אין עוד פעילויות להיום</p>
+        <p>{t('noMoreToday')}</p>
       ) : (
-        <p>אין פעילויות נוספות היום</p>
+        <p>{t('noExtraToday')}</p>
       )}
-      {summary.schoolLessonCount > 0 ? <span>בית ספר היום: {summary.schoolLessonCount} שיעורים</span> : null}
+      {summary.schoolLessonCount > 0 ? <span>{t('schoolToday')} {summary.schoolLessonCount} {t('lessons')}</span> : null}
     </article>
   );
 }

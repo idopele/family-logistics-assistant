@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import type { Child, ScheduleOccurrence, TransportationLeg, TransportationPlan } from '../models';
-import type { TransportationConflict } from '../models';
+import { useUiPreferences, weekDayLabelsByLanguage, type Language } from '../i18n';
+import type { Child, ScheduleOccurrence, TransportationConflict, TransportationLeg, TransportationPlan } from '../models';
 import { validateTransportationPlanForSave } from '../services/transportationConflictDetection';
 import { getDayOfWeek, isValidTime } from '../utils/dateTime';
-import { formatDisplayDate, weekDayLabels } from '../utils/week';
+import { formatDisplayDate } from '../utils/week';
 
 interface TransportationDialogProps {
   occurrence: ScheduleOccurrence | null;
@@ -57,6 +57,7 @@ export function TransportationDialog({
   onSave,
   onDelete,
 }: TransportationDialogProps) {
+  const { language, t } = useUiPreferences();
   const [values, setValues] = useState<TransportationFormValues>(() => createInitialTransportationValues(null, null));
   const [error, setError] = useState<string | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
@@ -86,7 +87,7 @@ export function TransportationDialog({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const validationError = validateTransportationForm(values);
+    const validationError = validateTransportationForm(values, language);
 
     if (validationError !== null) {
       setError(validationError);
@@ -105,38 +106,38 @@ export function TransportationDialog({
     setError(null);
   }
 
-  const dialogDateLabel = getOccurrenceDateLabel(occurrence.date);
+  const dialogDateLabel = getOccurrenceDateLabel(occurrence.date, language);
 
   return (
     <div className="dialog-backdrop" role="presentation">
       <section className="transportation-dialog" role="dialog" aria-modal="true" aria-labelledby="transportation-title">
         <header className="transportation-dialog__header">
           <div>
-            <h2 id="transportation-title">הסעה - {occurrence.title}</h2>
+            <h2 id="transportation-title">{t('transportation')} - {occurrence.title}</h2>
             <p>
               {child?.name ?? occurrence.childId} · {dialogDateLabel}
             </p>
           </div>
           <button className="dialog-close-button" type="button" onClick={onClose}>
-            סגירה
+            {t('close')}
           </button>
         </header>
 
         <form className="transportation-form" onSubmit={handleSubmit}>
           <TransportationLegSection
-            title="הלוך"
-            enableLabel="לתכנן הסעה הלוך"
-            driverLabel="מי לוקח?"
-            timeLabel="שעת יציאה / איסוף"
+            title={t('outbound')}
+            enableLabel={t('planOutbound')}
+            driverLabel={t('outboundDriver')}
+            timeLabel={t('outboundTime')}
             values={values.outbound}
             children={children}
             onChange={(outbound) => setValues({ ...values, outbound })}
           />
           <TransportationLegSection
-            title="חזור"
-            enableLabel="לתכנן הסעה חזור"
-            driverLabel="מי מחזיר?"
-            timeLabel="שעת איסוף / חזרה"
+            title={t('returnTrip')}
+            enableLabel={t('planReturn')}
+            driverLabel={t('returnDriver')}
+            timeLabel={t('returnTime')}
             values={values.returnTrip}
             children={children}
             onChange={(returnTrip) => setValues({ ...values, returnTrip })}
@@ -162,27 +163,27 @@ export function TransportationDialog({
 
           {isConfirmingDelete ? (
             <div className="transportation-dialog__confirm-remove">
-              <p>להסיר את פרטי ההסעה לאירוע הזה?</p>
+              <p>{t('removeTransportationConfirm')}</p>
               <button className="delete-event-dialog__confirm" type="button" onClick={onDelete}>
-                הסר הסעה
+                {t('removeTransportation')}
               </button>
               <button className="delete-event-dialog__cancel" type="button" onClick={() => setIsConfirmingDelete(false)}>
-                ביטול
+                {t('cancel')}
               </button>
             </div>
           ) : null}
 
           <div className="add-event-form__actions">
             <button className="add-event-form__save" type="submit">
-              שמור הסעה
+              {t('saveTransportation')}
             </button>
             {existingPlan !== null ? (
               <button className="delete-event-dialog__confirm" type="button" onClick={() => setIsConfirmingDelete(true)}>
-                הסר הסעה
+                {t('removeTransportation')}
               </button>
             ) : null}
             <button className="add-event-form__cancel" type="button" onClick={onClose}>
-              ביטול
+              {t('cancel')}
             </button>
           </div>
         </form>
@@ -208,6 +209,8 @@ function TransportationLegSection({
   children: Child[];
   onChange: (values: TransportationLegFormValues) => void;
 }) {
+  const { t } = useUiPreferences();
+
   return (
     <fieldset className="transportation-leg">
       <legend>{title}</legend>
@@ -232,19 +235,19 @@ function TransportationLegSection({
               checked={values.occursNextDay}
               onChange={(event) => onChange({ ...values, occursNextDay: event.target.checked })}
             />
-            <span>ביום למחרת</span>
+            <span>{t('nextDayTransportation')}</span>
           </label>
           <label className="form-field">
-            <span>מאיפה?</span>
+            <span>{t('from')}</span>
             <input value={values.from} onChange={(event) => onChange({ ...values, from: event.target.value })} />
           </label>
           <label className="form-field">
-            <span>לאן?</span>
+            <span>{t('to')}</span>
             <input value={values.to} onChange={(event) => onChange({ ...values, to: event.target.value })} />
           </label>
 
           <fieldset className="passenger-field form-field--wide">
-            <legend>נוסעים</legend>
+            <legend>{t('passengers')}</legend>
             <div className="passenger-options">
               {children.map((child) => (
                 <label className="checkbox-field" key={child.id}>
@@ -260,14 +263,14 @@ function TransportationLegSection({
           </fieldset>
 
           <label className="form-field">
-            <span>נוסעים נוספים</span>
+            <span>{t('additionalPassengers')}</span>
             <input
               value={values.additionalPassengers}
               onChange={(event) => onChange({ ...values, additionalPassengers: event.target.value })}
             />
           </label>
           <label className="form-field">
-            <span>הערה</span>
+            <span>{t('note')}</span>
             <input value={values.notes} onChange={(event) => onChange({ ...values, notes: event.target.value })} />
           </label>
         </div>
@@ -287,15 +290,16 @@ function TransportationSaveConflictPanel({
   onBack: () => void;
   onSaveAnyway?: () => void;
 }) {
+  const { t } = useUiPreferences();
   const hasExactConflict = status === 'blocked';
 
   return (
     <section className="transportation-save-conflict" data-status={status}>
-      <h3>{hasExactConflict ? 'לא ניתן לשמור את ההסעה' : 'נמצאה התנגשות אפשרית'}</h3>
+      <h3>{hasExactConflict ? t('cannotSaveTransportation') : t('possibleConflictFound')}</h3>
       <p>
         {hasExactConflict
-          ? `${conflicts[0]?.first.driverName ?? 'הנהג'} כבר משויך להסעה אחרת באותה שעה.`
-          : 'ייתכן שאין מספיק זמן בין שתי ההסעות.'}
+          ? `${conflicts[0]?.first.driverName ?? t('transportation')} ${t('exactConflictSuffix')}`
+          : t('warningConflictMessage')}
       </p>
       <div className="transportation-save-conflict__list">
         {conflicts.map((conflict) => (
@@ -303,17 +307,17 @@ function TransportationSaveConflictPanel({
             <strong>{conflict.first.driverName}</strong>
             <ConflictLegLine item={conflict.first} />
             <ConflictLegLine item={conflict.second} />
-            <span>פער: {conflict.minutesApart} דקות</span>
+            <span>{t('gap')} {conflict.minutesApart} {t('minutes')}</span>
           </article>
         ))}
       </div>
       <div className="transportation-save-conflict__actions">
         <button className="delete-event-dialog__cancel" type="button" onClick={onBack}>
-          חזרה לעריכה
+          {t('backToEdit')}
         </button>
         {onSaveAnyway !== undefined ? (
           <button className="add-event-form__save" type="button" onClick={onSaveAnyway}>
-            שמור בכל זאת
+            {t('saveAnyway')}
           </button>
         ) : null}
       </div>
@@ -322,9 +326,11 @@ function TransportationSaveConflictPanel({
 }
 
 function ConflictLegLine({ item }: { item: TransportationConflict['first'] }) {
+  const { t } = useUiPreferences();
+
   return (
     <p>
-      {item.time} · {formatPassengerNames(item.childNames)} · {item.eventTitle} · {item.direction === 'outbound' ? 'הלוך' : 'חזור'}
+      {item.time} · {formatPassengerNames(item.childNames, t('additionalPassengers'))} · {item.eventTitle} · {item.direction === 'outbound' ? t('outbound') : t('returnTrip')}
     </p>
   );
 }
@@ -356,12 +362,15 @@ export function createInitialTransportationValues(
   };
 }
 
-export function validateTransportationForm(values: TransportationFormValues): string | null {
+export function validateTransportationForm(values: TransportationFormValues, language: Language = 'he'): string | null {
+  const validation = validationMessages[language];
+  const labels = language === 'he' ? { outbound: 'הלוך', returnTrip: 'חזור' } : { outbound: 'outbound ride', returnTrip: 'return ride' };
+
   if (!values.outbound.enabled && !values.returnTrip.enabled) {
-    return 'יש לבחור לפחות נסיעת הלוך או חזור.';
+    return validation.legRequired;
   }
 
-  return validateLeg(values.outbound, 'הלוך') ?? validateLeg(values.returnTrip, 'חזור');
+  return validateLeg(values.outbound, labels.outbound, validation) ?? validateLeg(values.returnTrip, labels.returnTrip, validation);
 }
 
 export function buildTransportationPlanFromFormValues(
@@ -381,21 +390,21 @@ export function buildTransportationPlanFromFormValues(
   };
 }
 
-function validateLeg(values: TransportationLegFormValues, label: string): string | null {
+function validateLeg(values: TransportationLegFormValues, label: string, validation: (typeof validationMessages)['he'] | (typeof validationMessages)['en']): string | null {
   if (!values.enabled) {
     return null;
   }
 
   if (values.driverName.trim() === '') {
-    return `יש להזין מי אחראי להסעת ${label}.`;
+    return `${validation.driverRequired} ${label}.`;
   }
 
   if (!isValidTime(values.time)) {
-    return `יש להזין שעה תקינה להסעת ${label}.`;
+    return `${validation.timeRequired} ${label}.`;
   }
 
   if (values.passengerChildIds.length === 0 && values.additionalPassengers.trim() === '') {
-    return `יש לבחור נוסעים או להזין נוסעים נוספים להסעת ${label}.`;
+    return `${validation.passengersRequired} ${label}.`;
   }
 
   return null;
@@ -443,10 +452,10 @@ function togglePassenger(passengerChildIds: string[], childId: string): string[]
     : [...passengerChildIds, childId];
 }
 
-function getOccurrenceDateLabel(date: string): string {
-  const dayLabel = weekDayLabels[getDayOfWeek(date)] ?? '';
+function getOccurrenceDateLabel(date: string, language: Language): string {
+  const dayLabel = weekDayLabelsByLanguage[language][getDayOfWeek(date)] ?? '';
 
-  return `יום ${dayLabel} ${formatDisplayDate(date)}`;
+  return language === 'he' ? `יום ${dayLabel} ${formatDisplayDate(date)}` : `${dayLabel} ${formatDisplayDate(date)}`;
 }
 
 function nullableText(value: string): string | null {
@@ -455,8 +464,8 @@ function nullableText(value: string): string | null {
   return trimmedValue === '' ? null : trimmedValue;
 }
 
-function formatPassengerNames(childNames: string[]): string {
-  return childNames.length === 0 ? 'נוסעים נוספים' : childNames.join(', ');
+function formatPassengerNames(childNames: string[], emptyLabel: string): string {
+  return childNames.length === 0 ? emptyLabel : childNames.join(', ');
 }
 
 function createTransportationPlanId(): string {
@@ -466,3 +475,18 @@ function createTransportationPlanId(): string {
 
   return `transport-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
+
+const validationMessages = {
+  he: {
+    legRequired: 'יש לבחור לפחות נסיעת הלוך או חזור.',
+    driverRequired: 'יש להזין מי אחראי להסעת',
+    timeRequired: 'יש להזין שעה תקינה להסעת',
+    passengersRequired: 'יש לבחור נוסעים או להזין נוסעים נוספים להסעת',
+  },
+  en: {
+    legRequired: 'Choose at least an outbound or return ride.',
+    driverRequired: 'Enter who is responsible for the',
+    timeRequired: 'Enter a valid time for the',
+    passengersRequired: 'Choose passengers or enter additional passengers for the',
+  },
+} as const;

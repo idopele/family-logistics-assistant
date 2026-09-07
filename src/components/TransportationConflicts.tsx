@@ -1,4 +1,5 @@
-﻿import type { TransportationConflict, TransportationConflictItem } from '../models';
+import { useUiPreferences } from '../i18n';
+import type { TransportationConflict, TransportationConflictItem } from '../models';
 
 interface TransportationConflictsProps {
   conflicts: TransportationConflict[];
@@ -6,25 +7,27 @@ interface TransportationConflictsProps {
 }
 
 export function TransportationConflicts({ conflicts, summaryLabel }: TransportationConflictsProps) {
+  const { t } = useUiPreferences();
+
   if (conflicts.length === 0) {
     return null;
   }
 
   return (
     <details className="transportation-conflicts">
-      <summary>{summaryLabel ?? `⚠️ ${conflicts.length} התנגשויות אפשריות בהסעות`}</summary>
+      <summary>{summaryLabel ?? `⚠ ${conflicts.length} ${t('transportationConflicts')}`}</summary>
       <div className="transportation-conflicts__list">
         {conflicts.map((conflict) => (
           <article className="transportation-conflict" key={conflict.id}>
-            <h3>התנגשות אפשרית</h3>
+            <h3>{t('possibleConflict')}</h3>
             <p className="transportation-conflict__driver">{conflict.first.driverName}</p>
             <ConflictItem item={conflict.first} />
             <ConflictItem item={conflict.second} />
-            <p className="transportation-conflict__gap">פער: {conflict.minutesApart} דקות</p>
+            <p className="transportation-conflict__gap">{t('gap')} {conflict.minutesApart} {t('minutes')}</p>
             <p className="transportation-conflict__message">
               {conflict.severity === 'sameTime'
-                ? 'שתי הסעות משויכות לאותו נהג באותה שעה.'
-                : 'ייתכן שאין מספיק זמן בין שתי ההסעות.'}
+                ? `${conflict.first.driverName} ${t('exactConflictSuffix')}`
+                : t('warningConflictMessage')}
             </p>
           </article>
         ))}
@@ -34,20 +37,22 @@ export function TransportationConflicts({ conflicts, summaryLabel }: Transportat
 }
 
 function ConflictItem({ item }: { item: TransportationConflictItem }) {
+  const { t } = useUiPreferences();
+
   return (
     <div className="transportation-conflict__item">
       <time dateTime={`${item.effectiveDate}T${item.time}`}>{item.time}</time>
       <span>
-        {formatChildNames(item.childNames)} · {item.eventTitle} · {formatDirection(item.direction)}
+        {formatChildNames(item.childNames, t('additionalPassengers'))} · {item.eventTitle} · {formatDirection(item.direction, t('outbound'), t('returnTrip'))}
       </span>
     </div>
   );
 }
 
-function formatChildNames(childNames: string[]): string {
-  return childNames.length === 0 ? 'נוסעים נוספים' : childNames.join(', ');
+function formatChildNames(childNames: string[], emptyLabel: string): string {
+  return childNames.length === 0 ? emptyLabel : childNames.join(', ');
 }
 
-function formatDirection(direction: TransportationConflictItem['direction']): string {
-  return direction === 'outbound' ? 'הלוך' : 'חזור';
+function formatDirection(direction: TransportationConflictItem['direction'], outbound: string, returnTrip: string): string {
+  return direction === 'outbound' ? outbound : returnTrip;
 }

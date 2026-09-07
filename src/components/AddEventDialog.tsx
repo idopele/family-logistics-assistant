@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { eventCategories } from '../data/eventCategories';
+import { getEventCategoryLabel } from '../data/eventCategories';
+import { useUiPreferences, weekDayLabelsByLanguage, type Language } from '../i18n';
 import type { Child, Event, EventCategory, RecurrenceRule } from '../models';
 import { getDayOfWeek, isValidDate, isValidTime } from '../utils/dateTime';
-import { weekDayLabels } from '../utils/week';
 
 interface AddEventDialogProps {
   isOpen: boolean;
@@ -78,6 +78,7 @@ const initialValues: AddEventFormValues = {
 };
 
 export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave }: AddEventDialogProps) {
+  const { language, t } = useUiPreferences();
   const [values, setValues] = useState<AddEventFormValues>(initialValues);
   const [error, setError] = useState<string | null>(null);
   const isEditMode = eventToEdit !== null && eventToEdit !== undefined;
@@ -98,7 +99,7 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const validationError = validateAddEventForm(values, children);
+    const validationError = validateAddEventForm(values, children, language);
 
     if (validationError !== null) {
       setError(validationError);
@@ -148,11 +149,11 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
     <div className="dialog-backdrop" role="presentation">
       <section className="add-event-dialog" role="dialog" aria-modal="true" aria-labelledby="add-event-title">
         <header className="add-event-dialog__header">
-          <h2 id="add-event-title">{isEditMode ? 'עריכת אירוע' : 'הוסף אירוע'}</h2>
+          <h2 id="add-event-title">{isEditMode ? t('editEventTitle') : t('addEventTitle')}</h2>
         </header>
         <form className="add-event-form" onSubmit={handleSubmit}>
           <label className="form-field">
-            <span>ילד</span>
+            <span>{t('child')}</span>
             <select value={values.childId} onChange={(event) => setValues({ ...values, childId: event.target.value })}>
               {children.map((child) => (
                 <option key={child.id} value={child.id}>
@@ -163,7 +164,7 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
           </label>
 
           <label className="form-field">
-            <span>סוג אירוע</span>
+            <span>{t('eventType')}</span>
             <select
               value={values.category}
               onChange={(event) => {
@@ -178,16 +179,16 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
             >
               {manualCategories.map((category) => (
                 <option key={category} value={category}>
-                  {eventCategories[category]}
+                  {getEventCategoryLabel({ category, customCategoryLabel: null }, language)}
                 </option>
               ))}
-              <option value="custom">סוג פעילות אחר...</option>
+              <option value="custom">{t('customActivityType')}</option>
             </select>
           </label>
 
           {values.category === 'custom' ? (
             <label className="form-field">
-              <span>שם סוג הפעילות</span>
+              <span>{t('customActivityTypeName')}</span>
               <input
                 value={values.customCategoryLabel}
                 onChange={(event) => setValues({ ...values, customCategoryLabel: event.target.value })}
@@ -196,7 +197,7 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
           ) : null}
 
           <fieldset className="recurrence-mode-field form-field--wide">
-            <legend>חזרתיות:</legend>
+            <legend>{t('recurrenceMode')}</legend>
             <label>
               <input
                 type="radio"
@@ -204,7 +205,7 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
                 checked={values.recurrenceMode === 'oneTime'}
                 onChange={() => setValues({ ...values, recurrenceMode: 'oneTime' })}
               />
-              <span>חד-פעמי</span>
+              <span>{t('oneTime')}</span>
             </label>
             <label>
               <input
@@ -225,25 +226,25 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
                   });
                 }}
               />
-              <span>אירוע חוזר</span>
+              <span>{t('recurringEvent')}</span>
             </label>
           </fieldset>
 
           <label className="form-field">
-            <span>כותרת</span>
+            <span>{t('title')}</span>
             <input value={values.title} onChange={(event) => setValues({ ...values, title: event.target.value })} />
           </label>
 
           {values.recurrenceMode === 'oneTime' ? (
             <label className="form-field">
-              <span>תאריך</span>
+              <span>{t('date')}</span>
               <input type="date" value={values.date} onChange={(event) => handleDateChange(event.target.value)} />
             </label>
           ) : (
             <fieldset className="recurrence-controls form-field--wide">
-              <legend>חזרתיות</legend>
+              <legend>{t('recurrence')}</legend>
               <label className="form-field">
-                <span>תאריך התחלה</span>
+                <span>{t('startDate')}</span>
                 <input
                   type="date"
                   value={values.recurrenceStartDate}
@@ -251,23 +252,23 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
                 />
               </label>
               <label className="form-field">
-                <span>תדירות</span>
+                <span>{t('frequency')}</span>
                 <select
                   value={values.recurrenceFrequency}
                   onChange={(event) => setValues({ ...values, recurrenceFrequency: event.target.value as RecurrenceRule['frequency'] })}
                 >
-                  <option value="daily">יומי</option>
-                  <option value="weekly">שבועי</option>
-                  <option value="monthly">חודשי</option>
+                  <option value="daily">{t('daily')}</option>
+                  <option value="weekly">{t('weekly')}</option>
+                  <option value="monthly">{t('monthly')}</option>
                 </select>
               </label>
               <label className="form-field">
                 <span>
                   {values.recurrenceFrequency === 'daily'
-                    ? 'כל X ימים'
+                    ? t('everyDays')
                     : values.recurrenceFrequency === 'weekly'
-                      ? 'כל X שבועות'
-                      : 'כל X חודשים'}
+                      ? t('everyWeeks')
+                      : t('everyMonths')}
                 </span>
                 <input
                   type="number"
@@ -279,9 +280,9 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
               </label>
               {values.recurrenceFrequency === 'weekly' ? (
                 <fieldset className="weekday-field form-field--wide">
-                  <legend>ימי השבוע</legend>
+                  <legend>{t('daysOfWeek')}</legend>
                   <div className="weekday-options">
-                    {weekDayLabels.map((label, day) => (
+                    {weekDayLabelsByLanguage[language].map((label, day) => (
                       <button
                         className="weekday-option"
                         data-selected={values.recurrenceDaysOfWeek.includes(day) ? 'true' : 'false'}
@@ -295,9 +296,9 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
                   </div>
                 </fieldset>
               ) : null}
-              {values.recurrenceFrequency === 'monthly' ? <p className="recurrence-help">חוזר באותו יום בחודש</p> : null}
+              {values.recurrenceFrequency === 'monthly' ? <p className="recurrence-help">{t('monthlyHelp')}</p> : null}
               <fieldset className="recurrence-end-field form-field--wide">
-                <legend>סיום החזרה</legend>
+                <legend>{t('recurrenceEnd')}</legend>
                 <label>
                   <input
                     type="radio"
@@ -305,7 +306,7 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
                     checked={values.recurrenceEndMode === 'none'}
                     onChange={() => setValues({ ...values, recurrenceEndMode: 'none', recurrenceEndDate: '' })}
                   />
-                  <span>ללא תאריך סיום</span>
+                  <span>{t('noEndDate')}</span>
                 </label>
                 <label>
                   <input
@@ -314,7 +315,7 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
                     checked={values.recurrenceEndMode === 'date'}
                     onChange={() => setValues({ ...values, recurrenceEndMode: 'date' })}
                   />
-                  <span>בתאריך</span>
+                  <span>{t('onDate')}</span>
                 </label>
                 {values.recurrenceEndMode === 'date' ? (
                   <input
@@ -328,7 +329,7 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
           )}
 
           <label className="form-field">
-            <span>שעת התחלה</span>
+            <span>{t('startTime')}</span>
             <input
               type="time"
               value={values.startTime}
@@ -337,7 +338,7 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
           </label>
 
           <label className="form-field">
-            <span>שעת סיום</span>
+            <span>{t('endTime')}</span>
             <input
               type="time"
               value={values.endTime}
@@ -353,16 +354,16 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
               checked={values.endsNextDay}
               onChange={(event) => setValues({ ...values, endsNextDay: event.target.checked })}
             />
-            <span>מסתיים ביום למחרת</span>
+            <span>{t('endsNextDay')}</span>
           </label>
 
           <label className="form-field">
-            <span>מיקום</span>
+            <span>{t('location')}</span>
             <input value={values.location} onChange={(event) => setValues({ ...values, location: event.target.value })} />
           </label>
 
           <label className="form-field form-field--wide">
-            <span>הערות</span>
+            <span>{t('notes')}</span>
             <textarea value={values.notes} onChange={(event) => setValues({ ...values, notes: event.target.value })} />
           </label>
 
@@ -370,10 +371,10 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
 
           <div className="add-event-form__actions">
             <button className="add-event-form__save" type="submit">
-              {isEditMode ? 'שמור שינויים' : 'שמור אירוע'}
+              {isEditMode ? t('saveChanges') : t('saveEvent')}
             </button>
             <button className="add-event-form__cancel" type="button" onClick={handleCancel}>
-              ביטול
+              {t('cancel')}
             </button>
           </div>
         </form>
@@ -417,63 +418,65 @@ function getFormValuesFromEvent(event: Event): AddEventFormValues {
   };
 }
 
-export function validateAddEventForm(values: AddEventFormValues, children: Child[]): string | null {
+export function validateAddEventForm(values: AddEventFormValues, children: Child[], language: Language = 'he'): string | null {
+  const validation = validationMessages[language];
+
   if (values.childId === '' || !children.some((child) => child.id === values.childId)) {
-    return 'בחרו ילד.';
+    return validation.childRequired;
   }
 
   if (values.category === 'custom' && values.customCategoryLabel.trim() === '') {
-    return 'יש להזין שם סוג פעילות.';
+    return validation.customCategoryRequired;
   }
 
   if (values.title.trim() === '') {
-    return 'יש להזין כותרת.';
+    return validation.titleRequired;
   }
 
   if (values.recurrenceMode === 'oneTime' && !isValidDate(values.date)) {
-    return 'יש להזין תאריך תקין.';
+    return validation.dateRequired;
   }
 
   if (values.recurrenceMode === 'recurring') {
     if (!isValidDate(values.recurrenceStartDate)) {
-      return 'יש להזין תאריך התחלה תקין.';
+      return validation.recurrenceStartRequired;
     }
 
     const recurrenceInterval = Number(values.recurrenceInterval);
 
     if (!Number.isInteger(recurrenceInterval) || recurrenceInterval < 1) {
-      return 'יש להזין מרווח חזרתיות חיובי.';
+      return validation.recurrenceIntervalRequired;
     }
 
     if (values.recurrenceFrequency === 'weekly' && values.recurrenceDaysOfWeek.length === 0) {
-      return 'יש לבחור לפחות יום אחד בשבוע.';
+      return validation.recurrenceWeekdayRequired;
     }
 
     if (values.recurrenceEndMode === 'date') {
       if (!isValidDate(values.recurrenceEndDate)) {
-        return 'יש להזין תאריך סיום תקין.';
+        return validation.recurrenceEndRequired;
       }
 
       if (values.recurrenceEndDate < values.recurrenceStartDate) {
-        return 'תאריך הסיום לא יכול להיות לפני תאריך ההתחלה.';
+        return validation.recurrenceEndBeforeStart;
       }
     }
   }
 
   if (!isValidTime(values.startTime)) {
-    return 'יש להזין שעת התחלה תקינה.';
+    return validation.startTimeRequired;
   }
 
   if (values.endsNextDay && values.endTime === '') {
-    return 'יש להזין שעת סיום לאירוע שמסתיים ביום למחרת.';
+    return validation.overnightEndRequired;
   }
 
   if (values.endTime !== '' && !isValidTime(values.endTime)) {
-    return 'יש להזין שעת סיום תקינה או להשאיר ריק.';
+    return validation.endTimeInvalid;
   }
 
   if (!values.endsNextDay && values.endTime !== '' && values.endTime < values.startTime) {
-    return 'שעת הסיום לא יכולה להיות מוקדמת משעת ההתחלה.';
+    return validation.endBeforeStart;
   }
 
   return null;
@@ -542,3 +545,36 @@ function createEventId(): string {
 
   return `custom-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
+
+const validationMessages = {
+  he: {
+    childRequired: 'בחרו ילד.',
+    customCategoryRequired: 'יש להזין שם סוג פעילות.',
+    titleRequired: 'יש להזין כותרת.',
+    dateRequired: 'יש להזין תאריך תקין.',
+    recurrenceStartRequired: 'יש להזין תאריך התחלה תקין.',
+    recurrenceIntervalRequired: 'יש להזין מרווח חזרתיות חיובי.',
+    recurrenceWeekdayRequired: 'יש לבחור לפחות יום אחד בשבוע.',
+    recurrenceEndRequired: 'יש להזין תאריך סיום תקין.',
+    recurrenceEndBeforeStart: 'תאריך הסיום לא יכול להיות לפני תאריך ההתחלה.',
+    startTimeRequired: 'יש להזין שעת התחלה תקינה.',
+    overnightEndRequired: 'יש להזין שעת סיום לאירוע שמסתיים ביום למחרת.',
+    endTimeInvalid: 'יש להזין שעת סיום תקינה או להשאיר ריק.',
+    endBeforeStart: 'שעת הסיום לא יכולה להיות מוקדמת משעת ההתחלה.',
+  },
+  en: {
+    childRequired: 'Choose a child.',
+    customCategoryRequired: 'Enter an activity type name.',
+    titleRequired: 'Enter a title.',
+    dateRequired: 'Enter a valid date.',
+    recurrenceStartRequired: 'Enter a valid start date.',
+    recurrenceIntervalRequired: 'Enter a positive recurrence interval.',
+    recurrenceWeekdayRequired: 'Choose at least one day of the week.',
+    recurrenceEndRequired: 'Enter a valid end date.',
+    recurrenceEndBeforeStart: 'The end date cannot be before the start date.',
+    startTimeRequired: 'Enter a valid start time.',
+    overnightEndRequired: 'Enter an end time for an event that ends next day.',
+    endTimeInvalid: 'Enter a valid end time or leave it empty.',
+    endBeforeStart: 'The end time cannot be earlier than the start time.',
+  },
+} as const;

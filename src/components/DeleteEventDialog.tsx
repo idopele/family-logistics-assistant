@@ -1,4 +1,5 @@
-﻿import type { Event, ScheduleOccurrence } from '../models';
+import { useUiPreferences } from '../i18n';
+import type { Event, ScheduleOccurrence } from '../models';
 
 interface DeleteEventDialogProps {
   event: Event | null;
@@ -13,18 +14,20 @@ interface DeleteEventDialogProps {
 export function DeleteEventDialog({
   event,
   pendingOccurrence = null,
-  title = 'למחוק את האירוע?',
+  title,
   message,
-  confirmLabel = 'מחק',
+  confirmLabel,
   onCancel,
   onConfirm,
 }: DeleteEventDialogProps) {
+  const { t } = useUiPreferences();
+
   if (event === null && pendingOccurrence === null) {
     return null;
   }
 
   const displayTitle = pendingOccurrence?.title ?? event?.title ?? '';
-  const heading = pendingOccurrence !== null ? 'לבטל את המופע הזה?' : title;
+  const heading = pendingOccurrence !== null ? t('cancelOccurrenceTitle') : title ?? t('deleteTitle');
 
   return (
     <div className="dialog-backdrop" role="presentation">
@@ -35,10 +38,10 @@ export function DeleteEventDialog({
         {message !== undefined ? <p>{message}</p> : null}
         <div className="delete-event-dialog__actions">
           <button className="delete-event-dialog__confirm" type="button" onClick={onConfirm}>
-            {pendingOccurrence !== null ? 'בטל מופע' : confirmLabel}
+            {pendingOccurrence !== null ? t('cancelOccurrenceConfirm') : confirmLabel ?? t('delete')}
           </button>
           <button className="delete-event-dialog__cancel" type="button" onClick={onCancel}>
-            ביטול
+            {t('cancel')}
           </button>
         </div>
       </section>

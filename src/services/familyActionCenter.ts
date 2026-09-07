@@ -7,9 +7,10 @@ import type {
   TransportationLeg,
   TransportationPlan,
 } from '../models';
+import type { Language } from '../i18n';
 import { getEventCategoryLabel } from '../data/eventCategories';
-import { addDays, getDayOfWeek } from '../utils/dateTime';
-import { formatDisplayDate, weekDayLabels } from '../utils/week';
+import { addDays } from '../utils/dateTime';
+import { formatFullDisplayDate } from '../utils/week';
 import { getOccurrencesForDate, getOccurrencesForRange } from './scheduleEngine';
 import { detectTransportationConflicts, getTransportationLegEffectiveDate } from './transportationConflictDetection';
 
@@ -65,6 +66,7 @@ export function buildFamilyActionCenterData({
   children,
   today,
   currentTime,
+  language = 'he',
 }: {
   events: Event[];
   exceptions: EventException[];
@@ -72,6 +74,7 @@ export function buildFamilyActionCenterData({
   children: Child[];
   today: string;
   currentTime: string;
+  language?: Language;
 }): FamilyActionCenterData {
   const todayOccurrences = getOccurrencesForDate(events, exceptions, today);
   const overnightLookupOccurrences = getOccurrencesForRange(events, exceptions, addDays(today, -1), today);
@@ -90,7 +93,7 @@ export function buildFamilyActionCenterData({
 
   return {
     today,
-    todayLabel: formatFullDisplayDate(today),
+    todayLabel: formatFullDisplayDate(today, language),
     childSummaries: getChildSummaries(children, todayOccurrences, remainingNonSchoolOccurrences),
     remainingNonSchoolOccurrences,
     changedOccurrences,
@@ -217,6 +220,10 @@ export function formatActionCenterCategory(occurrence: ScheduleOccurrence): stri
   return getEventCategoryLabel(occurrence);
 }
 
+export function formatActionCenterCategoryForLanguage(occurrence: ScheduleOccurrence, language: Language): string {
+  return getEventCategoryLabel(occurrence, language);
+}
+
 function getChildSummaries(
   children: Child[],
   todayOccurrences: ScheduleOccurrence[],
@@ -270,13 +277,6 @@ function toTodayTransportationLeg(
   };
 }
 
-function formatFullDisplayDate(date: string): string {
-  const { year } = { year: date.slice(0, 4) };
-  const dayLabel = weekDayLabels[getDayOfWeek(date)];
-
-  return `יום ${dayLabel} · ${formatDisplayDate(date)}.${year}`;
-}
-
 function compareOccurrencesByTime(first: ScheduleOccurrence, second: ScheduleOccurrence): number {
   return first.startTime.localeCompare(second.startTime) || first.childId.localeCompare(second.childId) || first.eventId.localeCompare(second.eventId);
 }
@@ -288,3 +288,4 @@ function toComparableDateTime(date: string, time: string): string {
 function getOccurrenceKey(eventId: string, occurrenceDate: string): string {
   return `${eventId}|${occurrenceDate}`;
 }
+

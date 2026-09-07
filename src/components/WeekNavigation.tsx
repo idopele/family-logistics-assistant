@@ -1,3 +1,5 @@
+import { useUiPreferences } from '../i18n';
+
 interface WeekNavigationProps {
   weekLabel: string;
   onPreviousWeek: () => void;
@@ -6,20 +8,22 @@ interface WeekNavigationProps {
 }
 
 export function WeekNavigation({ weekLabel, onPreviousWeek, onCurrentWeek, onNextWeek }: WeekNavigationProps) {
+  const { t } = useUiPreferences();
+
   return (
-    <section className="week-navigation" aria-label="ניווט שבועי">
+    <section className="week-navigation" aria-label={t('weekNavigation')}>
       <div className="week-navigation__range" aria-live="polite">
         {weekLabel}
       </div>
       <div className="week-navigation__buttons">
         <button className="week-navigation__button" type="button" onClick={onPreviousWeek}>
-          שבוע קודם
+          {t('previousWeek')}
         </button>
         <button className="week-navigation__button" type="button" onClick={onCurrentWeek}>
-          השבוע
+          {t('thisWeek')}
         </button>
         <button className="week-navigation__button" type="button" onClick={onNextWeek}>
-          שבוע הבא
+          {t('nextWeek')}
         </button>
       </div>
     </section>

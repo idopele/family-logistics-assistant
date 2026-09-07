@@ -1,4 +1,5 @@
-﻿import { getEventCategoryLabel } from '../data/eventCategories';
+import { getEventCategoryLabel } from '../data/eventCategories';
+import { useUiPreferences } from '../i18n';
 import type { Child, Event, ScheduleOccurrence, TransportationLeg, TransportationPlan } from '../models';
 
 interface EventDetailsDialogProps {
@@ -42,6 +43,8 @@ export function EventDetailsDialog({
   onDeleteSeries,
   onOpenTransportation,
 }: EventDetailsDialogProps) {
+  const { language, t } = useUiPreferences();
+
   if (event === null) {
     return null;
   }
@@ -57,45 +60,45 @@ export function EventDetailsDialog({
         <header className="event-details-dialog__header">
           <h2 id="event-details-title">{details.title}</h2>
           <button className="dialog-close-button" type="button" onClick={onClose}>
-            סגירה
+            {t('close')}
           </button>
         </header>
 
         <dl className="event-details-list">
           <div>
-            <dt>ילד</dt>
+            <dt>{t('child')}</dt>
             <dd>{child?.name ?? event.childId}</dd>
           </div>
           <div>
-            <dt>סוג</dt>
-            <dd>{getEventCategoryLabel(event)}</dd>
+            <dt>{t('eventType')}</dt>
+            <dd>{getEventCategoryLabel(event, language)}</dd>
           </div>
           {isRecurring ? (
             <div>
-              <dt>חזרתיות</dt>
-              <dd>אירוע חוזר</dd>
+              <dt>{t('recurrence')}</dt>
+              <dd>{t('recurringEvent')}</dd>
             </div>
           ) : null}
           <div>
-            <dt>תאריך</dt>
+            <dt>{t('date')}</dt>
             <dd>{detailsDate}</dd>
           </div>
           <div>
-            <dt>שעה</dt>
+            <dt>{t('startTime')}</dt>
             <dd>
               <span className="event-details-list__time">{timeLabel}</span>
-              {details.endsNextDay ? <span className="event-details-list__next-day">למחרת</span> : null}
+              {details.endsNextDay ? <span className="event-details-list__next-day">{t('nextDay')}</span> : null}
             </dd>
           </div>
           {details.location !== null ? (
             <div>
-              <dt>מיקום</dt>
+              <dt>{t('location')}</dt>
               <dd>{details.location}</dd>
             </div>
           ) : null}
           {details.notes !== null ? (
             <div>
-              <dt>הערות</dt>
+              <dt>{t('notes')}</dt>
               <dd>{details.notes}</dd>
             </div>
           ) : null}
@@ -108,22 +111,22 @@ export function EventDetailsDialog({
             <>
               {canEditOccurrence ? (
                 <button className="event-details-dialog__edit" type="button" onClick={onEditOccurrence}>
-                  {canEditSeries ? 'עריכת המופע הזה' : 'עריכת האירוע'}
+                  {canEditSeries ? t('editOccurrence') : t('editEvent')}
                 </button>
               ) : null}
               {canEditSeries ? (
                 <button className="event-details-dialog__edit" type="button" onClick={onEditSeries}>
-                  עריכת כל הסדרה
+                  {t('editSeries')}
                 </button>
               ) : null}
               {canCancelOccurrence ? (
                 <button className="event-details-dialog__delete" type="button" onClick={onCancelOccurrence}>
-                  ביטול האירוע בתאריך הזה
+                  {t('cancelOccurrence')}
                 </button>
               ) : null}
               {canDeleteSeries ? (
                 <button className="event-details-dialog__delete" type="button" onClick={onDeleteSeries}>
-                  מחיקת כל הסדרה
+                  {t('deleteSeries')}
                 </button>
               ) : null}
             </>
@@ -131,21 +134,21 @@ export function EventDetailsDialog({
             <>
               {canEditEvent ? (
                 <button className="event-details-dialog__edit" type="button" onClick={onEdit}>
-                  עריכת האירוע
+                  {t('editEvent')}
                 </button>
               ) : null}
               {canDeleteEvent ? (
                 <button className="event-details-dialog__delete" type="button" onClick={onDelete}>
-                  מחיקת אירוע
+                  {t('deleteEvent')}
                 </button>
               ) : null}
             </>
           ) : null}
           <button className="event-details-dialog__transportation" type="button" onClick={onOpenTransportation}>
-            {transportationPlan === null ? '+ הוסף הסעה' : 'עריכת הסעה'}
+            {transportationPlan === null ? t('addTransportation') : t('editTransportation')}
           </button>
           <button className="event-details-dialog__close" type="button" onClick={onClose}>
-            סגירה
+            {t('close')}
           </button>
         </div>
       </section>
@@ -154,34 +157,37 @@ export function EventDetailsDialog({
 }
 
 function TransportationDetails({ plan }: { plan: TransportationPlan }) {
+  const { t } = useUiPreferences();
+
   return (
     <section className="event-details-transportation">
-      <h3>הסעה</h3>
-      {plan.outbound !== null ? <TransportationLegDetails title="הלוך" leg={plan.outbound} /> : null}
-      {plan.returnTrip !== null ? <TransportationLegDetails title="חזור" leg={plan.returnTrip} /> : null}
+      <h3>{t('transportation')}</h3>
+      {plan.outbound !== null ? <TransportationLegDetails title={t('outbound')} leg={plan.outbound} /> : null}
+      {plan.returnTrip !== null ? <TransportationLegDetails title={t('returnTrip')} leg={plan.returnTrip} /> : null}
     </section>
   );
 }
 
 function TransportationLegDetails({ title, leg }: { title: string; leg: TransportationLeg }) {
-  const route = formatRoute(leg.from, leg.to);
+  const { t } = useUiPreferences();
+  const route = formatRoute(leg.from, leg.to, t('notSpecified'));
 
   return (
     <div className="event-details-transportation__leg">
       <h4>{title}</h4>
       <p>
         {leg.driverName} · {leg.time}
-        {leg.occursNextDay ? ' · למחרת' : ''}
+        {leg.occursNextDay ? ` · ${t('nextDay')}` : ''}
       </p>
       {route !== null ? <p>{route}</p> : null}
     </div>
   );
 }
 
-function formatRoute(from: string | null, to: string | null): string | null {
+function formatRoute(from: string | null, to: string | null, fallback: string): string | null {
   if (from === null && to === null) {
     return null;
   }
 
-  return `${from ?? 'לא צוין'} -> ${to ?? 'לא צוין'}`;
+  return `${from ?? fallback} -> ${to ?? fallback}`;
 }

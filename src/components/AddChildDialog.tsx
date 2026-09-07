@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useUiPreferences } from '../i18n';
 import type { Child } from '../models';
 
 interface AddChildDialogProps {
@@ -10,6 +11,7 @@ interface AddChildDialogProps {
 const childColorOptions = ['#7C3AED', '#0F766E', '#EA580C', '#0891B2', '#4F46E5', '#BE123C'];
 
 export function AddChildDialog({ isOpen, onClose, onSave }: AddChildDialogProps) {
+  const { t } = useUiPreferences();
   const [name, setName] = useState('');
   const [color, setColor] = useState(childColorOptions[0]);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +24,7 @@ export function AddChildDialog({ isOpen, onClose, onSave }: AddChildDialogProps)
     event.preventDefault();
 
     if (name.trim() === '') {
-      setError('יש להזין שם ילד/ה.');
+      setError(t('childNameRequired'));
       return;
     }
 
@@ -49,16 +51,16 @@ export function AddChildDialog({ isOpen, onClose, onSave }: AddChildDialogProps)
     <div className="dialog-backdrop" role="presentation">
       <section className="add-event-dialog" role="dialog" aria-modal="true" aria-labelledby="add-child-title">
         <header className="add-event-dialog__header">
-          <h2 id="add-child-title">הוסף ילד/ה</h2>
+          <h2 id="add-child-title">{t('addChildTitle')}</h2>
         </header>
         <form className="add-event-form" onSubmit={handleSubmit}>
           <label className="form-field form-field--wide">
-            <span>שם הילד/ה</span>
+            <span>{t('childName')}</span>
             <input value={name} onChange={(event) => setName(event.target.value)} />
           </label>
 
           <fieldset className="color-field form-field--wide">
-            <legend>צבע</legend>
+            <legend>{t('color')}</legend>
             <div className="color-options">
               {childColorOptions.map((option) => (
                 <button
@@ -67,7 +69,7 @@ export function AddChildDialog({ isOpen, onClose, onSave }: AddChildDialogProps)
                   key={option}
                   style={{ backgroundColor: option }}
                   type="button"
-                  aria-label={`בחר צבע ${option}`}
+                  aria-label={`${t('chooseColor')} ${option}`}
                   onClick={() => setColor(option)}
                 />
               ))}
@@ -78,10 +80,10 @@ export function AddChildDialog({ isOpen, onClose, onSave }: AddChildDialogProps)
 
           <div className="add-event-form__actions">
             <button className="add-event-form__save" type="submit">
-              שמור ילד/ה
+              {t('saveChild')}
             </button>
             <button className="add-event-form__cancel" type="button" onClick={handleCancel}>
-              ביטול
+              {t('cancel')}
             </button>
           </div>
         </form>

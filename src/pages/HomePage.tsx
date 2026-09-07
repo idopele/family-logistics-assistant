@@ -9,6 +9,7 @@ import { OccurrenceEditDialog } from '../components/OccurrenceEditDialog';
 import { ScheduleFilters, type CategoryFilter, type ChildFilter } from '../components/ScheduleFilters';
 import { TransportationConflicts } from '../components/TransportationConflicts';
 import { TransportationDialog } from '../components/TransportationDialog';
+import { UiPreferenceControls } from '../components/UiPreferenceControls';
 import { WeekNavigation } from '../components/WeekNavigation';
 import { children as seedChildren } from '../data/children';
 import { eventExceptions } from '../data/eventExceptions';
@@ -33,6 +34,7 @@ import {
 import { getOccurrencesForRange } from '../services/scheduleEngine';
 import { detectTransportationConflicts } from '../services/transportationConflictDetection';
 import { buildFamilyActionCenterData } from '../services/familyActionCenter';
+import { useUiPreferences } from '../i18n';
 import { addDays } from '../utils/dateTime';
 import {
   formatWeekRange,
@@ -51,6 +53,7 @@ type PendingConfirmation =
   | null;
 
 export function HomePage() {
+  const { language, t } = useUiPreferences();
   const today = useMemo(() => getTodayDateString(), []);
   const currentTime = useMemo(() => getCurrentTimeString(), []);
   const currentWeekStartDate = useMemo(() => getSundayOfWeek(today), [today]);
@@ -69,7 +72,7 @@ export function HomePage() {
   const [customEventExceptions, setCustomEventExceptions] = useState<EventException[]>(() => loadCustomEventExceptions());
   const [transportationPlans, setTransportationPlans] = useState<TransportationPlan[]>(() => loadTransportationPlans());
   const [customChildren, setCustomChildren] = useState<Child[]>(() => loadCustomChildren());
-  const weekDays = useMemo(() => getWorkWeekDays(weekStartDate), [weekStartDate]);
+  const weekDays = useMemo(() => getWorkWeekDays(weekStartDate, language), [language, weekStartDate]);
   const activeChildren = useMemo(() => [...seedChildren, ...customChildren].filter((child) => child.isActive), [customChildren]);
   const childrenById = useMemo(() => new Map(activeChildren.map((child) => [child.id, child])), [activeChildren]);
   const allEvents = useMemo(() => [...events, ...customEvents], [customEvents]);
@@ -162,8 +165,9 @@ export function HomePage() {
         children: activeChildren,
         today,
         currentTime,
+        language,
       }),
-    [activeChildren, allEventExceptions, allEvents, currentTime, today, transportationPlans],
+    [activeChildren, allEventExceptions, allEvents, currentTime, language, today, transportationPlans],
   );
 
   function handleSaveCustomEvent(event: Event) {
@@ -310,22 +314,25 @@ export function HomePage() {
       <header className="dashboard-top">
         <div className="dashboard-top__main">
           <div className="dashboard-header">
-            <p>הלו״ז המשפחתי</p>
-            <h1 id="app-title">Family Logistics Assistant</h1>
+            <p>{t('appTitle')}</p>
+            <h1 id="app-title">{t('appName')}</h1>
           </div>
           <WeekNavigation
-            weekLabel={formatWeekRange(weekStartDate)}
+            weekLabel={formatWeekRange(weekStartDate, language)}
             onPreviousWeek={() => setWeekStartDate(getPreviousWeekStart(weekStartDate))}
             onCurrentWeek={() => setWeekStartDate(getSundayOfWeek(today))}
             onNextWeek={() => setWeekStartDate(getNextWeekStart(weekStartDate))}
           />
-          <div className="dashboard-actions">
-            <button className="add-event-button" type="button" onClick={() => setIsAddEventOpen(true)}>
-              + הוסף אירוע
-            </button>
-            <button className="add-child-button" type="button" onClick={() => setIsAddChildOpen(true)}>
-              + הוסף ילד
-            </button>
+          <div className="dashboard-header-tools">
+            <UiPreferenceControls />
+            <div className="dashboard-actions">
+              <button className="add-event-button" type="button" onClick={() => setIsAddEventOpen(true)}>
+                {t('addEvent')}
+              </button>
+              <button className="add-child-button" type="button" onClick={() => setIsAddChildOpen(true)}>
+                {t('addChild')}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -336,13 +343,15 @@ export function HomePage() {
           showOnlyWithTransportation={showOnlyWithTransportation}
           onChildFilterChange={setChildFilter}
           onCategoryFilterChange={setCategoryFilter}
-          onShowOnlyWithTransportationChange={setShowOnlyWithTransportation}
+        onShowOnlyWithTransportationChange={setShowOnlyWithTransportation}
         />
         {weeklyTransportationSummary.totalLegs > 0 ? (
-          <section className="transportation-week-summary" aria-label="סיכום הסעות שבועי">
-            <strong>הסעות השבוע: {weeklyTransportationSummary.totalLegs}</strong>
+          <section className="transportation-week-summary" aria-label={t('ridesThisWeek')}>
+            <strong>
+              {t('ridesThisWeek')} {weeklyTransportationSummary.totalLegs}
+            </strong>
             <span>
-              הלוך: {weeklyTransportationSummary.outboundCount} · חזור: {weeklyTransportationSummary.returnCount}
+              {t('outbound')}: {weeklyTransportationSummary.outboundCount} · {t('returnTrip')}: {weeklyTransportationSummary.returnCount}
             </span>
           </section>
         ) : null}
@@ -353,6 +362,7 @@ export function HomePage() {
         data={familyActionCenterData}
         childrenById={childrenById}
         transportationPlansByOccurrence={transportationPlansByOccurrence}
+        language={language}
         isViewingCurrentWeek={weekStartDate === currentWeekStartDate}
         onShowCurrentWeek={() => setWeekStartDate(currentWeekStartDate)}
         onOccurrenceSelect={setSelectedOccurrence}
@@ -360,10 +370,10 @@ export function HomePage() {
 
       <section className="weekly-schedule" aria-labelledby="weekly-schedule-title">
         <div className="weekly-schedule__header">
-          <h2 id="weekly-schedule-title">השבוע</h2>
-          <span>{formatWeekRange(weekStartDate)}</span>
+          <h2 id="weekly-schedule-title">{t('weekSection')}</h2>
+          <span>{formatWeekRange(weekStartDate, language)}</span>
         </div>
-        <div className="weekly-grid" aria-label="לוח שבועי">
+        <div className="weekly-grid" aria-label={t('weekSection')}>
           {weekDays.map((day) => (
             <DaySchedule
               key={day.date}
@@ -375,6 +385,7 @@ export function HomePage() {
               editableEventIds={editableEventIds}
               customRecurringEventIds={customRecurringEventIds}
               transportationPlansByOccurrence={transportationPlansByOccurrence}
+              language={language}
               onOccurrenceSelect={setSelectedOccurrence}
               isToday={isDateInWorkWeek(today, weekStartDate) && today === day.date}
             />
@@ -433,13 +444,13 @@ export function HomePage() {
       />
       <DeleteEventDialog
         event={confirmationEvent}
-        title={pendingConfirmation?.type === 'deleteSeries' ? 'למחוק את כל הסדרה?' : 'למחוק את האירוע?'}
+        title={pendingConfirmation?.type === 'deleteSeries' ? t('deleteSeriesTitle') : t('deleteTitle')}
         message={
           pendingConfirmation?.type === 'deleteSeries'
-            ? 'הפעולה תמחק את האירוע החוזר ואת כל השינויים למופעים שלו.'
+            ? t('deleteSeriesMessage')
             : undefined
         }
-        confirmLabel={pendingConfirmation?.type === 'deleteSeries' ? 'מחק את כל הסדרה' : 'מחק'}
+        confirmLabel={pendingConfirmation?.type === 'deleteSeries' ? t('deleteSeries') : t('delete')}
         pendingOccurrence={pendingConfirmation?.type === 'cancelOccurrence' ? pendingConfirmation.occurrence : null}
         onCancel={() => setPendingConfirmation(null)}
         onConfirm={handleConfirmAction}

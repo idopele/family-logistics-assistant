@@ -1,5 +1,6 @@
-﻿import type { ReactNode } from 'react';
-import { eventCategories } from '../data/eventCategories';
+import type { ReactNode } from 'react';
+import { getEventCategoryLabel } from '../data/eventCategories';
+import { useUiPreferences } from '../i18n';
 import type { Child, EventCategory } from '../models';
 
 export type ChildFilter = 'all' | string;
@@ -56,10 +57,12 @@ export function ScheduleFilters({
   onCategoryFilterChange,
   onShowOnlyWithTransportationChange,
 }: ScheduleFiltersProps) {
+  const { language, t } = useUiPreferences();
+
   return (
-    <section className="schedule-filters" aria-label="מסנני לוז">
-      <FilterGroup label="ילד:">
-        {[{ id: 'all', name: 'הכל' }, ...children].map((filter) => (
+    <section className="schedule-filters" aria-label={t('filters')}>
+      <FilterGroup label={t('childFilter')}>
+        {[{ id: 'all', name: t('all') }, ...children].map((filter) => (
           <button
             className="schedule-filters__button"
             type="button"
@@ -71,7 +74,7 @@ export function ScheduleFilters({
           </button>
         ))}
       </FilterGroup>
-      <FilterGroup label="סוג פעילות:">
+      <FilterGroup label={t('activityTypeFilter')}>
         {categoryFilterValues.map((filter) => (
           <button
             className="schedule-filters__button"
@@ -80,7 +83,7 @@ export function ScheduleFilters({
             key={filter}
             onClick={() => onCategoryFilterChange(filter)}
           >
-            {filter === 'all' ? 'הכל' : eventCategories[filter]}
+            {filter === 'all' ? t('all') : getEventCategoryLabel({ category: filter, customCategoryLabel: null }, language)}
           </button>
         ))}
       </FilterGroup>
@@ -90,7 +93,7 @@ export function ScheduleFilters({
           checked={showOnlyWithTransportation}
           onChange={(event) => onShowOnlyWithTransportationChange(event.target.checked)}
         />
-        <span>הצג רק אירועים עם הסעה</span>
+        <span>{t('onlyTransportation')}</span>
       </label>
     </section>
   );

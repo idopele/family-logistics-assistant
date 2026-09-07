@@ -1,4 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
+import type { Language } from '../i18n';
+import { useUiPreferences } from '../i18n';
 import type { Child, ScheduleOccurrence, TransportationPlan } from '../models';
 import type { ChildFilter } from './ScheduleFilters';
 import { formatDisplayDate } from '../utils/week';
@@ -13,6 +15,7 @@ interface DayScheduleProps {
   editableEventIds: Set<string>;
   customRecurringEventIds: Set<string>;
   transportationPlansByOccurrence: Map<string, TransportationPlan>;
+  language?: Language;
   onOccurrenceSelect: (occurrence: ScheduleOccurrence) => void;
   isToday: boolean;
 }
@@ -26,9 +29,11 @@ export function DaySchedule({
   editableEventIds,
   customRecurringEventIds,
   transportationPlansByOccurrence,
+  language = 'he',
   onOccurrenceSelect,
   isToday,
 }: DayScheduleProps) {
+  const { t } = useUiPreferences();
   const schoolOccurrences = occurrences.filter((occurrence) => occurrence.category === 'school');
   const afternoonOccurrences = occurrences.filter((occurrence) => occurrence.category !== 'school');
 
@@ -40,11 +45,11 @@ export function DaySchedule({
       </header>
       <div className="day-schedule__events">
         {occurrences.length === 0 ? (
-          <p className="day-schedule__empty">אין אירועים</p>
+          <p className="day-schedule__empty">{t('noEvents')}</p>
         ) : (
           <>
             {schoolOccurrences.length > 0 ? (
-              <ScheduleSection title="בית ספר" variant="school">
+              <ScheduleSection title={t('schoolSection')} variant="school">
                 <div className="school-list">
                   {schoolOccurrences.map((occurrence) => {
                     const child = childrenById.get(occurrence.childId);
@@ -64,7 +69,7 @@ export function DaySchedule({
             ) : null}
 
             {afternoonOccurrences.length > 0 ? (
-              <ScheduleSection title="אחה״צ וערב" variant="afternoon">
+              <ScheduleSection title={t('afternoonSection')} variant="afternoon">
                 {afternoonOccurrences.map((occurrence) => {
                   const child = childrenById.get(occurrence.childId);
 
@@ -76,6 +81,7 @@ export function DaySchedule({
                       isEditable={editableEventIds.has(occurrence.eventId)}
                       isRecurring={customRecurringEventIds.has(occurrence.eventId)}
                       transportationPlan={transportationPlansByOccurrence.get(getOccurrenceKey(occurrence)) ?? null}
+                      language={language}
                       onSelect={onOccurrenceSelect}
                     />
                   ) : null;

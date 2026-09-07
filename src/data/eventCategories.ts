@@ -1,3 +1,4 @@
+import type { Language } from '../i18n';
 import type { EventCategory } from '../models';
 
 export const eventCategories: Record<EventCategory, string> = {
@@ -23,10 +24,39 @@ export const eventCategories: Record<EventCategory, string> = {
   other: 'אחר',
 };
 
-export function getEventCategoryLabel(event: { category: EventCategory; customCategoryLabel: string | null }): string {
+export const localizedEventCategories: Record<Language, Record<EventCategory, string>> = {
+  he: eventCategories,
+  en: {
+    school: 'School',
+    basketball: 'Basketball',
+    dance: 'Dance',
+    privateLesson: 'Private lesson',
+    scouts: 'Scouts',
+    doctor: 'Doctor',
+    dentist: 'Dentist',
+    haircut: 'Haircut',
+    friends: 'Friends',
+    family: 'Family',
+    work: 'Work',
+    romanticDate: 'Date',
+    meal: 'Meal',
+    birthday: 'Birthday',
+    exam: 'Exam',
+    transportation: 'Transportation',
+    parentMeeting: 'Parent meeting',
+    performance: 'Performance',
+    openPractice: 'Open practice',
+    other: 'Other',
+  },
+};
+
+export function getEventCategoryLabel(
+  event: { category: EventCategory; customCategoryLabel: string | null },
+  language: Language = 'he',
+): string {
   if (event.category === 'other' && event.customCategoryLabel !== null && event.customCategoryLabel.trim() !== '') {
     return event.customCategoryLabel;
   }
 
-  return eventCategories[event.category];
+  return localizedEventCategories[language][event.category];
 }

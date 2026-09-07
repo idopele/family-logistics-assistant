@@ -1,5 +1,10 @@
 import { HomePage } from './pages/HomePage.tsx';
+import { UiPreferencesProvider } from './i18n';
 
 export function App() {
-  return <HomePage />;
+  return (
+    <UiPreferencesProvider>
+      <HomePage />
+    </UiPreferencesProvider>
+  );
 }

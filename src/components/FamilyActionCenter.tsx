@@ -1,6 +1,8 @@
 import type { Child, ScheduleOccurrence, TransportationPlan } from '../models';
+import type { Language } from '../i18n';
+import { useUiPreferences } from '../i18n';
 import type { FamilyActionCenterData, TodayTransportationLeg } from '../services/familyActionCenter';
-import { formatActionCenterCategory, formatActionCenterTime } from '../services/familyActionCenter';
+import { formatActionCenterCategoryForLanguage, formatActionCenterTime } from '../services/familyActionCenter';
 import { ChildTodaySummary } from './ChildTodaySummary';
 import { TransportationConflicts } from './TransportationConflicts';
 
@@ -8,6 +10,7 @@ interface FamilyActionCenterProps {
   data: FamilyActionCenterData;
   childrenById: Map<string, Child>;
   transportationPlansByOccurrence: Map<string, TransportationPlan>;
+  language: Language;
   isViewingCurrentWeek: boolean;
   onShowCurrentWeek: () => void;
   onOccurrenceSelect: (occurrence: ScheduleOccurrence) => void;
@@ -17,10 +20,12 @@ export function FamilyActionCenter({
   data,
   childrenById,
   transportationPlansByOccurrence,
+  language,
   isViewingCurrentWeek,
   onShowCurrentWeek,
   onOccurrenceSelect,
 }: FamilyActionCenterProps) {
+  const { t } = useUiPreferences();
   const hasMeaningfulItems =
     data.remainingNonSchoolOccurrences.length > 0 ||
     data.cancellations.length > 0 ||
@@ -32,26 +37,26 @@ export function FamilyActionCenter({
     <section className="family-action-center" aria-labelledby="family-action-center-title">
       <header className="family-action-center__header">
         <div>
-          <h2 id="family-action-center-title">היום במשפחה</h2>
+          <h2 id="family-action-center-title">{t('actionCenterTitle')}</h2>
           <p>{data.todayLabel}</p>
         </div>
         {!isViewingCurrentWeek ? (
           <button className="family-action-center__week-button" type="button" onClick={onShowCurrentWeek}>
-            הצג את השבוע הנוכחי
+            {t('showCurrentWeek')}
           </button>
         ) : null}
       </header>
 
       <div className="family-action-center__counts">
-        {data.counts.activities > 0 ? <span>{data.counts.activities} פעילויות</span> : null}
-        {data.counts.transportationLegs > 0 ? <span>{data.counts.transportationLegs} הסעות</span> : null}
-        {data.counts.changes > 0 ? <span>שינוי {data.counts.changes}</span> : null}
+        {data.counts.activities > 0 ? <span>{data.counts.activities} {t('activities')}</span> : null}
+        {data.counts.transportationLegs > 0 ? <span>{data.counts.transportationLegs} {t('rides')}</span> : null}
+        {data.counts.changes > 0 ? <span data-tone="change">{data.counts.changes} {t('change')}</span> : null}
       </div>
 
       {data.transportationConflicts.length > 0 ? (
         <TransportationConflicts
           conflicts={data.transportationConflicts}
-          summaryLabel={`⚠️ ${data.transportationConflicts.length} התנגשות אפשרית בהסעות היום`}
+          summaryLabel={`⚠ ${data.transportationConflicts.length} ${t('todayTransportationConflict')}`}
         />
       ) : null}
 
@@ -63,7 +68,7 @@ export function FamilyActionCenter({
 
       {data.remainingNonSchoolOccurrences.length > 0 ? (
         <section className="family-action-section">
-          <h3>המשך היום</h3>
+          <h3>{t('continueToday')}</h3>
           <div className="family-action-list">
             {data.remainingNonSchoolOccurrences.map((occurrence) => (
               <button
@@ -75,9 +80,9 @@ export function FamilyActionCenter({
                 <time>{formatActionCenterTime(occurrence)}</time>
                 <em>{childrenById.get(occurrence.childId)?.name ?? occurrence.childId}</em>
                 <span>{occurrence.title}</span>
-                <small>{formatActionCenterCategory(occurrence)}</small>
+                <small>{formatActionCenterCategoryForLanguage(occurrence, language)}</small>
                 {occurrence.location !== null ? <small>{occurrence.location}</small> : null}
-                {occurrence.isException ? <b>שינוי היום</b> : null}
+                {occurrence.isException ? <b>{t('change')}</b> : null}
                 <OccurrenceTransportationSummary plan={transportationPlansByOccurrence.get(getOccurrenceKey(occurrence)) ?? null} />
               </button>
             ))}
@@ -87,12 +92,12 @@ export function FamilyActionCenter({
 
       {data.cancellations.length > 0 ? (
         <section className="family-action-section">
-          <h3>שינויים וביטולים</h3>
+          <h3>{t('changesAndCancellations')}</h3>
           <div className="family-action-list">
             {data.cancellations.map((cancellation) => (
               <div className="family-action-row family-action-row--static" key={cancellation.id}>
                 <time>{cancellation.time}</time>
-                <span>בוטל היום</span>
+                <span>{t('cancelledToday')}</span>
                 <small>
                   {cancellation.childName} · {cancellation.title}
                 </small>
@@ -104,7 +109,7 @@ export function FamilyActionCenter({
 
       {data.transportationLegs.length > 0 ? (
         <section className="family-action-section">
-          <h3>הסעות היום</h3>
+          <h3>{t('ridesToday')}</h3>
           <div className="family-action-list">
             {data.transportationLegs.map((leg) => (
               <TransportationLegRow key={leg.id} leg={leg} />
@@ -113,23 +118,23 @@ export function FamilyActionCenter({
         </section>
       ) : null}
 
-      {!hasMeaningfulItems ? (
-        <p className="family-action-center__empty">אין כרגע משהו שדורש תשומת לב מיוחדת היום</p>
-      ) : null}
+      {!hasMeaningfulItems ? <p className="family-action-center__empty">{t('noActionItems')}</p> : null}
     </section>
   );
 }
 
 function OccurrenceTransportationSummary({ plan }: { plan: TransportationPlan | null }) {
+  const { t } = useUiPreferences();
+
   if (plan === null) {
     return null;
   }
 
   return (
     <small>
-      {plan.outbound !== null ? `הסעה הלוך: ${plan.outbound.driverName} ${plan.outbound.time}` : ''}
+      {plan.outbound !== null ? `${t('outbound')}: ${plan.outbound.driverName} ${plan.outbound.time}` : ''}
       {plan.outbound !== null && plan.returnTrip !== null ? ' · ' : ''}
-      {plan.returnTrip !== null ? `הסעה חזור: ${plan.returnTrip.driverName} ${plan.returnTrip.time}` : ''}
+      {plan.returnTrip !== null ? `${t('returnTrip')}: ${plan.returnTrip.driverName} ${plan.returnTrip.time}` : ''}
     </small>
   );
 }
@@ -139,19 +144,21 @@ function getOccurrenceKey(occurrence: ScheduleOccurrence): string {
 }
 
 function TransportationLegRow({ leg }: { leg: TodayTransportationLeg }) {
+  const { t } = useUiPreferences();
+
   return (
-    <div className="family-action-row family-action-row--static">
+    <div className="family-action-row family-action-row--static family-action-row--transport">
       <time>{leg.time}</time>
       <span>
-        {leg.driverName} · {leg.direction === 'outbound' ? 'הלוך' : 'חזור'}
+        {leg.driverName} · {leg.direction === 'outbound' ? t('outbound') : t('returnTrip')}
       </span>
       <small>
-        {formatPassengerNames(leg.passengerNames)} · {leg.eventTitle}
+        {formatPassengerNames(leg.passengerNames, t('additionalPassengers'))} · {leg.eventTitle}
       </small>
     </div>
   );
 }
 
-function formatPassengerNames(passengerNames: string[]): string {
-  return passengerNames.length === 0 ? 'נוסעים נוספים' : passengerNames.join(', ');
+function formatPassengerNames(passengerNames: string[], emptyLabel: string): string {
+  return passengerNames.length === 0 ? emptyLabel : passengerNames.join(', ');
 }
