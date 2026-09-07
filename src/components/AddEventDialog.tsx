@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { getEventCategoryLabel } from '../data/eventCategories';
 import { useUiPreferences, weekDayLabelsByLanguage, type Language } from '../i18n';
 import type { Child, Event, EventCategory, RecurrenceRule } from '../models';
@@ -82,14 +82,23 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
   const [values, setValues] = useState<AddEventFormValues>(initialValues);
   const [error, setError] = useState<string | null>(null);
   const isEditMode = eventToEdit !== null && eventToEdit !== undefined;
+  const lastInitializationKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
+      lastInitializationKeyRef.current = null;
+      return;
+    }
+
+    const initializationKey = getAddEventDialogInitializationKey(isOpen, eventToEdit);
+
+    if (!shouldInitializeAddEventDraft(lastInitializationKeyRef.current, initializationKey)) {
       return;
     }
 
     setValues(eventToEdit ? getFormValuesFromEvent(eventToEdit) : getInitialValues(children));
     setError(null);
+    lastInitializationKeyRef.current = initializationKey;
   }, [children, eventToEdit, isOpen]);
 
   if (!isOpen) {
@@ -388,6 +397,18 @@ function getInitialValues(children: Child[]): AddEventFormValues {
     ...initialValues,
     childId: children[0]?.id ?? '',
   };
+}
+
+export function getAddEventDialogInitializationKey(isOpen: boolean, eventToEdit?: Event | null): string | null {
+  if (!isOpen) {
+    return null;
+  }
+
+  return eventToEdit === null || eventToEdit === undefined ? 'create' : `edit:${eventToEdit.id}`;
+}
+
+export function shouldInitializeAddEventDraft(previousKey: string | null, nextKey: string | null): boolean {
+  return nextKey !== null && previousKey !== nextKey;
 }
 
 function getFormValuesFromEvent(event: Event): AddEventFormValues {

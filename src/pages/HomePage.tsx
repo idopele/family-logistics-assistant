@@ -6,6 +6,7 @@ import { DeleteEventDialog } from '../components/DeleteEventDialog';
 import { EventDetailsDialog } from '../components/EventDetailsDialog';
 import { FamilyActionCenter } from '../components/FamilyActionCenter';
 import { OccurrenceEditDialog } from '../components/OccurrenceEditDialog';
+import { ScheduleDateFilters } from '../components/ScheduleDateFilters';
 import { ScheduleFilters, type CategoryFilter, type ChildFilter } from '../components/ScheduleFilters';
 import { TransportationConflicts } from '../components/TransportationConflicts';
 import { TransportationDialog } from '../components/TransportationDialog';
@@ -44,7 +45,12 @@ import { getOccurrencesForRange } from '../services/scheduleEngine';
 import { detectTransportationConflicts } from '../services/transportationConflictDetection';
 import { buildFamilyActionCenterData } from '../services/familyActionCenter';
 import { useUiPreferences } from '../i18n';
-import { addDays } from '../utils/dateTime';
+import { addDays, isValidDate } from '../utils/dateTime';
+import {
+  getVisibleWeekDays,
+  getWeekStartForSpecificDate,
+  type WeekdayFilter,
+} from '../utils/scheduleViewFilters';
 import {
   formatWeekRange,
   getNextWeekStart,
@@ -72,6 +78,8 @@ export function HomePage() {
   const [weekStartDate, setWeekStartDate] = useState(() => getSundayOfWeek(today));
   const [childFilter, setChildFilter] = useState<ChildFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
+  const [weekdayFilter, setWeekdayFilter] = useState<WeekdayFilter>('all');
+  const [specificDateFilter, setSpecificDateFilter] = useState('');
   const [showOnlyWithTransportation, setShowOnlyWithTransportation] = useState(false);
   const [isAddEventOpen, setIsAddEventOpen] = useState(false);
   const [isAddChildOpen, setIsAddChildOpen] = useState(false);
@@ -90,6 +98,10 @@ export function HomePage() {
   const [isImportingLocalData, setIsImportingLocalData] = useState(false);
   const [sharedDataError, setSharedDataError] = useState<string | null>(null);
   const weekDays = useMemo(() => getWorkWeekDays(weekStartDate, language), [language, weekStartDate]);
+  const visibleWeekDays = useMemo(
+    () => getVisibleWeekDays(weekDays, weekdayFilter, specificDateFilter, language),
+    [language, specificDateFilter, weekDays, weekdayFilter],
+  );
   const activeChildren = useMemo(() => [...seedChildren, ...customChildren].filter((child) => child.isActive), [customChildren]);
   const childrenById = useMemo(() => new Map(activeChildren.map((child) => [child.id, child])), [activeChildren]);
   const allEvents = useMemo(() => [...events, ...customEvents], [customEvents]);
@@ -448,6 +460,29 @@ export function HomePage() {
     setIsImportingLocalData(false);
   }
 
+  function handlePreviousWeek() {
+    setSpecificDateFilter('');
+    setWeekStartDate(getPreviousWeekStart(weekStartDate));
+  }
+
+  function handleCurrentWeek() {
+    setSpecificDateFilter('');
+    setWeekStartDate(getSundayOfWeek(today));
+  }
+
+  function handleNextWeek() {
+    setSpecificDateFilter('');
+    setWeekStartDate(getNextWeekStart(weekStartDate));
+  }
+
+  function handleSpecificDateFilterChange(date: string) {
+    setSpecificDateFilter(date);
+
+    if (date !== '' && isValidDate(date)) {
+      setWeekStartDate(getWeekStartForSpecificDate(date));
+    }
+  }
+
   return (
     <main className="dashboard-page" aria-labelledby="app-title">
       <header className="dashboard-top">
@@ -456,12 +491,21 @@ export function HomePage() {
             <p>{t('appTitle')}</p>
             <h1 id="app-title">{t('appName')}</h1>
           </div>
-          <WeekNavigation
-            weekLabel={formatWeekRange(weekStartDate, language)}
-            onPreviousWeek={() => setWeekStartDate(getPreviousWeekStart(weekStartDate))}
-            onCurrentWeek={() => setWeekStartDate(getSundayOfWeek(today))}
-            onNextWeek={() => setWeekStartDate(getNextWeekStart(weekStartDate))}
-          />
+          <div className="dashboard-time-controls">
+            <WeekNavigation
+              weekLabel={formatWeekRange(weekStartDate, language)}
+              onPreviousWeek={handlePreviousWeek}
+              onCurrentWeek={handleCurrentWeek}
+              onNextWeek={handleNextWeek}
+            />
+            <ScheduleDateFilters
+              weekdayFilter={weekdayFilter}
+              specificDateFilter={specificDateFilter}
+              onWeekdayFilterChange={setWeekdayFilter}
+              onSpecificDateFilterChange={handleSpecificDateFilterChange}
+              onClearSpecificDateFilter={() => setSpecificDateFilter('')}
+            />
+          </div>
           <div className="dashboard-header-tools">
             <UiPreferenceControls />
             <SharedDataStatusIndicator status={sharedDataStatus} />
@@ -535,7 +579,7 @@ export function HomePage() {
           <span>{formatWeekRange(weekStartDate, language)}</span>
         </div>
         <div className="weekly-grid" aria-label={t('weekSection')}>
-          {weekDays.map((day) => (
+          {visibleWeekDays.map((day) => (
             <DaySchedule
               key={day.date}
               label={day.label}

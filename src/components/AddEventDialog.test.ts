@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { getEventCategoryLabel } from '../data/eventCategories';
 import type { Child } from '../models';
 import type { Event } from '../models';
-import { buildEventFromFormValues, type AddEventFormValues, validateAddEventForm } from './AddEventDialog';
+import {
+  buildEventFromFormValues,
+  getAddEventDialogInitializationKey,
+  shouldInitializeAddEventDraft,
+  type AddEventFormValues,
+  validateAddEventForm,
+} from './AddEventDialog';
 
 const children: Child[] = [
   {
@@ -190,5 +196,42 @@ describe('AddEventDialog validation', () => {
 
   it('displays friends with the updated Hebrew label', () => {
     expect(getEventCategoryLabel({ category: 'friends', customCategoryLabel: null })).toBe('פגישה עם חברים');
+  });
+});
+
+describe('AddEventDialog draft initialization', () => {
+  it('keeps a create draft stable after parent rerender', () => {
+    expect(shouldInitializeAddEventDraft('create', getAddEventDialogInitializationKey(true, null))).toBe(false);
+  });
+
+  it('keeps a create draft stable after shared-data refresh while open', () => {
+    expect(shouldInitializeAddEventDraft('create', 'create')).toBe(false);
+  });
+
+  it('keeps a create draft stable after child list prop refresh', () => {
+    const initialKey = getAddEventDialogInitializationKey(true, null);
+    const keyAfterChildrenRefresh = getAddEventDialogInitializationKey(true, null);
+
+    expect(shouldInitializeAddEventDraft(initialKey, keyAfterChildrenRefresh)).toBe(false);
+  });
+
+  it('keeps a create draft stable after outside filter changes', () => {
+    expect(shouldInitializeAddEventDraft('create', getAddEventDialogInitializationKey(true, undefined))).toBe(false);
+  });
+
+  it('starts a clean create draft after close and reopen', () => {
+    expect(shouldInitializeAddEventDraft(null, getAddEventDialogInitializationKey(true, null))).toBe(true);
+  });
+
+  it('initializes when the edit target changes to a different event', () => {
+    expect(shouldInitializeAddEventDraft('edit:event-a', 'edit:event-b')).toBe(true);
+  });
+
+  it('does not initialize while closed after save clears and closes', () => {
+    expect(shouldInitializeAddEventDraft('create', getAddEventDialogInitializationKey(false, null))).toBe(false);
+  });
+
+  it('allows cancel to discard the draft by resetting the next open key', () => {
+    expect(shouldInitializeAddEventDraft(null, 'create')).toBe(true);
   });
 });
