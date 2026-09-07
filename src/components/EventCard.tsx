@@ -1,16 +1,24 @@
-import type { CSSProperties } from 'react';
-import type { Child, ScheduleOccurrence } from '../models';
+﻿import type { CSSProperties } from 'react';
 import { getEventCategoryLabel } from '../data/eventCategories';
+import type { Child, ScheduleOccurrence, TransportationPlan } from '../models';
 
 interface EventCardProps {
   occurrence: ScheduleOccurrence;
   child: Child;
   isEditable?: boolean;
   isRecurring?: boolean;
+  transportationPlan?: TransportationPlan | null;
   onSelect?: (occurrence: ScheduleOccurrence) => void;
 }
 
-export function EventCard({ occurrence, child, isEditable = false, isRecurring = false, onSelect }: EventCardProps) {
+export function EventCard({
+  occurrence,
+  child,
+  isEditable = false,
+  isRecurring = false,
+  transportationPlan = null,
+  onSelect,
+}: EventCardProps) {
   const style = { '--child-color': child.color } as CSSProperties;
   const timeLabel = occurrence.endTime === null ? occurrence.startTime : `${occurrence.startTime}-${occurrence.endTime}`;
   const content = (
@@ -24,11 +32,12 @@ export function EventCard({ occurrence, child, isEditable = false, isRecurring =
       <div className="event-card__child">{child.name}</div>
       <h3 className="event-card__title">{occurrence.title}</h3>
       {occurrence.location !== null ? <p className="event-card__location">{occurrence.location}</p> : null}
-      {isEditable ? <span className="event-card__edit-cue">פרטים / עריכה</span> : null}
+      {transportationPlan !== null ? <TransportationPlanSummary plan={transportationPlan} /> : null}
+      {onSelect !== undefined ? <span className="event-card__edit-cue">{isEditable ? 'פרטים / עריכה' : 'פרטים'}</span> : null}
     </>
   );
 
-  if (isEditable) {
+  if (onSelect !== undefined) {
     return (
       <button className="event-card event-card--button" type="button" style={style} onClick={() => onSelect?.(occurrence)}>
         {content}
@@ -40,5 +49,22 @@ export function EventCard({ occurrence, child, isEditable = false, isRecurring =
     <article className="event-card" style={style}>
       {content}
     </article>
+  );
+}
+
+function TransportationPlanSummary({ plan }: { plan: TransportationPlan }) {
+  return (
+    <div className="event-card__transportation">
+      {plan.outbound !== null ? (
+        <span>
+          🚗 הלוך: {plan.outbound.driverName} · {plan.outbound.time}
+        </span>
+      ) : null}
+      {plan.returnTrip !== null ? (
+        <span>
+          🚗 חזור: {plan.returnTrip.driverName} · {plan.returnTrip.time}
+        </span>
+      ) : null}
+    </div>
   );
 }

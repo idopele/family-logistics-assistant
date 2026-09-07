@@ -6,11 +6,12 @@ import { DeleteEventDialog } from '../components/DeleteEventDialog';
 import { EventDetailsDialog } from '../components/EventDetailsDialog';
 import { OccurrenceEditDialog } from '../components/OccurrenceEditDialog';
 import { ScheduleFilters, type CategoryFilter, type ChildFilter } from '../components/ScheduleFilters';
+import { TransportationDialog } from '../components/TransportationDialog';
 import { WeekNavigation } from '../components/WeekNavigation';
 import { children as seedChildren } from '../data/children';
 import { eventExceptions } from '../data/eventExceptions';
 import { events } from '../data/events';
-import type { Child, Event, EventException, ScheduleOccurrence } from '../models';
+import type { Child, Event, EventException, ScheduleOccurrence, TransportationPlan } from '../models';
 import { loadCustomChildren, saveCustomChildren } from '../services/localChildStorage';
 import { deleteCustomEvent, loadCustomEvents, saveCustomEvents, updateCustomEvent } from '../services/localEventStorage';
 import {
@@ -19,6 +20,14 @@ import {
   saveCustomEventExceptions,
   upsertCustomEventException,
 } from '../services/localEventExceptionStorage';
+import {
+  deleteTransportationPlan,
+  deleteTransportationPlansForEvent,
+  getTransportationPlanForScheduleOccurrence,
+  loadTransportationPlans,
+  saveTransportationPlans,
+  upsertTransportationPlan,
+} from '../services/localTransportationStorage';
 import { getOccurrencesForRange } from '../services/scheduleEngine';
 import {
   formatWeekRange,
@@ -41,32 +50,50 @@ export function HomePage() {
   const [weekStartDate, setWeekStartDate] = useState(() => getSundayOfWeek(today));
   const [childFilter, setChildFilter] = useState<ChildFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
+  const [showOnlyWithTransportation, setShowOnlyWithTransportation] = useState(false);
   const [isAddEventOpen, setIsAddEventOpen] = useState(false);
   const [isAddChildOpen, setIsAddChildOpen] = useState(false);
   const [selectedOccurrence, setSelectedOccurrence] = useState<ScheduleOccurrence | null>(null);
+  const [transportationOccurrence, setTransportationOccurrence] = useState<ScheduleOccurrence | null>(null);
   const [eventToEdit, setEventToEdit] = useState<Event | null>(null);
   const [occurrenceToEdit, setOccurrenceToEdit] = useState<ScheduleOccurrence | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation>(null);
   const [customEvents, setCustomEvents] = useState<Event[]>(() => loadCustomEvents());
   const [customEventExceptions, setCustomEventExceptions] = useState<EventException[]>(() => loadCustomEventExceptions());
+  const [transportationPlans, setTransportationPlans] = useState<TransportationPlan[]>(() => loadTransportationPlans());
   const [customChildren, setCustomChildren] = useState<Child[]>(() => loadCustomChildren());
   const weekDays = useMemo(() => getWorkWeekDays(weekStartDate), [weekStartDate]);
   const activeChildren = useMemo(() => [...seedChildren, ...customChildren].filter((child) => child.isActive), [customChildren]);
   const childrenById = useMemo(() => new Map(activeChildren.map((child) => [child.id, child])), [activeChildren]);
   const allEvents = useMemo(() => [...events, ...customEvents], [customEvents]);
-  const allEventExceptions = useMemo(
-    () => [...eventExceptions, ...customEventExceptions],
-    [customEventExceptions],
-  );
+  const allEventExceptions = useMemo(() => [...eventExceptions, ...customEventExceptions], [customEventExceptions]);
   const editableEventIds = useMemo(() => new Set(customEvents.map((event) => event.id)), [customEvents]);
   const customRecurringEventIds = useMemo(
     () => new Set(customEvents.filter((event) => event.recurrence !== null).map((event) => event.id)),
     [customEvents],
   );
+  const selectedEvent = useMemo(
+    () => allEvents.find((event) => event.id === selectedOccurrence?.eventId) ?? null,
+    [allEvents, selectedOccurrence],
+  );
   const selectedCustomEvent = useMemo(
     () => customEvents.find((event) => event.id === selectedOccurrence?.eventId) ?? null,
     [customEvents, selectedOccurrence],
   );
+  const transportationDialogPlan = useMemo(
+    () =>
+      transportationOccurrence === null
+        ? null
+        : getTransportationPlanForScheduleOccurrence(transportationPlans, transportationOccurrence),
+    [transportationOccurrence, transportationPlans],
+  );
+  const selectedTransportationPlan = useMemo(
+    () => (selectedOccurrence === null ? null : getTransportationPlanForScheduleOccurrence(transportationPlans, selectedOccurrence)),
+    [selectedOccurrence, transportationPlans],
+  );
+  const transportationPlansByOccurrence = useMemo(() => {
+    return new Map(transportationPlans.map((plan) => [getTransportationKey(plan.eventId, plan.occurrenceDate), plan]));
+  }, [transportationPlans]);
   const confirmationEvent = useMemo(() => {
     if (pendingConfirmation?.type !== 'deleteEvent' && pendingConfirmation?.type !== 'deleteSeries') {
       return null;
@@ -74,16 +101,33 @@ export function HomePage() {
 
     return customEvents.find((event) => event.id === pendingConfirmation.eventId) ?? null;
   }, [customEvents, pendingConfirmation]);
-  const weekOccurrences = useMemo(() => {
+  const weekAllOccurrences = useMemo(() => {
     const weekEndDate = weekDays[weekDays.length - 1]?.date ?? weekStartDate;
 
-    return getOccurrencesForRange(allEvents, allEventExceptions, weekStartDate, weekEndDate).filter((occurrence) => {
+    return getOccurrencesForRange(allEvents, allEventExceptions, weekStartDate, weekEndDate);
+  }, [allEventExceptions, allEvents, weekDays, weekStartDate]);
+  const weekOccurrences = useMemo(() => {
+    return weekAllOccurrences.filter((occurrence) => {
       const matchesChild = childFilter === 'all' || occurrence.childId === childFilter;
       const matchesCategory = categoryFilter === 'all' || occurrence.category === categoryFilter;
+      const matchesTransportation =
+        !showOnlyWithTransportation || getTransportationPlanForScheduleOccurrence(transportationPlans, occurrence) !== null;
 
-      return matchesChild && matchesCategory;
+      return matchesChild && matchesCategory && matchesTransportation;
     });
-  }, [allEventExceptions, allEvents, categoryFilter, childFilter, weekDays, weekStartDate]);
+  }, [categoryFilter, childFilter, showOnlyWithTransportation, transportationPlans, weekAllOccurrences]);
+  const weeklyTransportationSummary = useMemo(() => {
+    const occurrenceKeys = new Set(weekAllOccurrences.map((occurrence) => getTransportationKey(occurrence.eventId, occurrence.date)));
+    const plansInWeek = transportationPlans.filter((plan) => occurrenceKeys.has(getTransportationKey(plan.eventId, plan.occurrenceDate)));
+    const outboundCount = plansInWeek.filter((plan) => plan.outbound !== null).length;
+    const returnCount = plansInWeek.filter((plan) => plan.returnTrip !== null).length;
+
+    return {
+      outboundCount,
+      returnCount,
+      totalLegs: outboundCount + returnCount,
+    };
+  }, [transportationPlans, weekAllOccurrences]);
 
   function handleSaveCustomEvent(event: Event) {
     const nextCustomEvents = [...customEvents, event];
@@ -124,6 +168,11 @@ export function HomePage() {
     setSelectedOccurrence(null);
   }
 
+  function handleOpenTransportation() {
+    setTransportationOccurrence(selectedOccurrence);
+    setSelectedOccurrence(null);
+  }
+
   function handleCancelSelectedOccurrence() {
     if (selectedOccurrence === null) {
       return;
@@ -159,6 +208,26 @@ export function HomePage() {
     setOccurrenceToEdit(null);
   }
 
+  function handleSaveTransportationPlan(plan: TransportationPlan) {
+    const nextPlans = upsertTransportationPlan(transportationPlans, plan);
+
+    setTransportationPlans(nextPlans);
+    saveTransportationPlans(nextPlans);
+    setTransportationOccurrence(null);
+  }
+
+  function handleDeleteTransportationPlan() {
+    if (transportationOccurrence === null) {
+      return;
+    }
+
+    const nextPlans = deleteTransportationPlan(transportationPlans, transportationOccurrence.eventId, transportationOccurrence.date);
+
+    setTransportationPlans(nextPlans);
+    saveTransportationPlans(nextPlans);
+    setTransportationOccurrence(null);
+  }
+
   function handleConfirmAction() {
     if (pendingConfirmation === null) {
       return;
@@ -184,11 +253,14 @@ export function HomePage() {
       pendingConfirmation.type === 'deleteSeries'
         ? deleteCustomEventExceptionsForEvent(customEventExceptions, pendingConfirmation.eventId)
         : customEventExceptions;
+    const nextTransportationPlans = deleteTransportationPlansForEvent(transportationPlans, pendingConfirmation.eventId);
 
     setCustomEvents(nextCustomEvents);
     saveCustomEvents(nextCustomEvents);
     setCustomEventExceptions(nextExceptions);
     saveCustomEventExceptions(nextExceptions);
+    setTransportationPlans(nextTransportationPlans);
+    saveTransportationPlans(nextTransportationPlans);
     setPendingConfirmation(null);
   }
 
@@ -210,9 +282,19 @@ export function HomePage() {
           children={activeChildren}
           childFilter={childFilter}
           categoryFilter={categoryFilter}
+          showOnlyWithTransportation={showOnlyWithTransportation}
           onChildFilterChange={setChildFilter}
           onCategoryFilterChange={setCategoryFilter}
+          onShowOnlyWithTransportationChange={setShowOnlyWithTransportation}
         />
+        {weeklyTransportationSummary.totalLegs > 0 ? (
+          <section className="transportation-week-summary" aria-label="סיכום הסעות שבועי">
+            <strong>הסעות השבוע: {weeklyTransportationSummary.totalLegs}</strong>
+            <span>
+              הלוך: {weeklyTransportationSummary.outboundCount} · חזור: {weeklyTransportationSummary.returnCount}
+            </span>
+          </section>
+        ) : null}
         <div className="dashboard-actions">
           <button className="add-event-button" type="button" onClick={() => setIsAddEventOpen(true)}>
             + הוסף אירוע
@@ -234,6 +316,7 @@ export function HomePage() {
             childFilter={childFilter}
             editableEventIds={editableEventIds}
             customRecurringEventIds={customRecurringEventIds}
+            transportationPlansByOccurrence={transportationPlansByOccurrence}
             onCustomEventSelect={setSelectedOccurrence}
             isToday={isDateInWorkWeek(today, weekStartDate) && today === day.date}
           />
@@ -257,11 +340,22 @@ export function HomePage() {
         onClose={() => setOccurrenceToEdit(null)}
         onSave={handleSaveOccurrenceException}
       />
+      <TransportationDialog
+        occurrence={transportationOccurrence}
+        child={transportationOccurrence === null ? null : childrenById.get(transportationOccurrence.childId) ?? null}
+        children={activeChildren}
+        existingPlan={transportationDialogPlan}
+        onClose={() => setTransportationOccurrence(null)}
+        onSave={handleSaveTransportationPlan}
+        onDelete={handleDeleteTransportationPlan}
+      />
       <AddChildDialog isOpen={isAddChildOpen} onClose={() => setIsAddChildOpen(false)} onSave={handleSaveCustomChild} />
       <EventDetailsDialog
-        event={selectedCustomEvent}
+        event={selectedEvent}
         occurrence={selectedOccurrence}
-        child={selectedCustomEvent === null ? null : childrenById.get(selectedCustomEvent.childId) ?? null}
+        child={selectedOccurrence === null ? null : childrenById.get(selectedOccurrence.childId) ?? null}
+        transportationPlan={selectedTransportationPlan}
+        canManageEvent={selectedCustomEvent !== null}
         onClose={() => setSelectedOccurrence(null)}
         onEdit={handleEditSelectedEvent}
         onDelete={handleDeleteSelectedEvent}
@@ -269,6 +363,7 @@ export function HomePage() {
         onCancelOccurrence={handleCancelSelectedOccurrence}
         onEditSeries={handleEditSelectedEvent}
         onDeleteSeries={handleDeleteSelectedSeries}
+        onOpenTransportation={handleOpenTransportation}
       />
       <DeleteEventDialog
         event={confirmationEvent}
@@ -285,4 +380,8 @@ export function HomePage() {
       />
     </main>
   );
+}
+
+function getTransportationKey(eventId: string, occurrenceDate: string): string {
+  return `${eventId}|${occurrenceDate}`;
 }

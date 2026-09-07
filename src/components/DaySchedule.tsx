@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import type { Child, ScheduleOccurrence } from '../models';
+import type { Child, ScheduleOccurrence, TransportationPlan } from '../models';
 import type { ChildFilter } from './ScheduleFilters';
 import { formatDisplayDate } from '../utils/week';
 import { EventCard } from './EventCard';
@@ -12,6 +12,7 @@ interface DayScheduleProps {
   childFilter: ChildFilter;
   editableEventIds: Set<string>;
   customRecurringEventIds: Set<string>;
+  transportationPlansByOccurrence: Map<string, TransportationPlan>;
   onCustomEventSelect: (occurrence: ScheduleOccurrence) => void;
   isToday: boolean;
 }
@@ -24,6 +25,7 @@ export function DaySchedule({
   childFilter,
   editableEventIds,
   customRecurringEventIds,
+  transportationPlansByOccurrence,
   onCustomEventSelect,
   isToday,
 }: DayScheduleProps) {
@@ -72,6 +74,7 @@ export function DaySchedule({
                       child={child}
                       isEditable={editableEventIds.has(occurrence.eventId)}
                       isRecurring={customRecurringEventIds.has(occurrence.eventId)}
+                      transportationPlan={transportationPlansByOccurrence.get(getOccurrenceKey(occurrence)) ?? null}
                       onSelect={onCustomEventSelect}
                     />
                   ) : null;
@@ -83,6 +86,10 @@ export function DaySchedule({
       </div>
     </section>
   );
+}
+
+function getOccurrenceKey(occurrence: ScheduleOccurrence): string {
+  return `${occurrence.eventId}|${occurrence.date}`;
 }
 
 function ScheduleSection({

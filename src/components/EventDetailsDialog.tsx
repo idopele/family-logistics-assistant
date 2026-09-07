@@ -1,10 +1,12 @@
 ﻿import { getEventCategoryLabel } from '../data/eventCategories';
-import type { Child, Event, ScheduleOccurrence } from '../models';
+import type { Child, Event, ScheduleOccurrence, TransportationLeg, TransportationPlan } from '../models';
 
 interface EventDetailsDialogProps {
   event: Event | null;
   occurrence: ScheduleOccurrence | null;
   child: Child | null;
+  transportationPlan: TransportationPlan | null;
+  canManageEvent: boolean;
   onClose: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -12,12 +14,15 @@ interface EventDetailsDialogProps {
   onCancelOccurrence: () => void;
   onEditSeries: () => void;
   onDeleteSeries: () => void;
+  onOpenTransportation: () => void;
 }
 
 export function EventDetailsDialog({
   event,
   occurrence,
   child,
+  transportationPlan,
+  canManageEvent,
   onClose,
   onEdit,
   onDelete,
@@ -25,6 +30,7 @@ export function EventDetailsDialog({
   onCancelOccurrence,
   onEditSeries,
   onDeleteSeries,
+  onOpenTransportation,
 }: EventDetailsDialogProps) {
   if (event === null) {
     return null;
@@ -54,7 +60,7 @@ export function EventDetailsDialog({
             <dt>סוג</dt>
             <dd>{getEventCategoryLabel(event)}</dd>
           </div>
-          {isRecurring ? (
+          {canManageEvent && isRecurring ? (
             <div>
               <dt>חזרתיות</dt>
               <dd>אירוע חוזר</dd>
@@ -85,8 +91,10 @@ export function EventDetailsDialog({
           ) : null}
         </dl>
 
+        {transportationPlan !== null ? <TransportationDetails plan={transportationPlan} /> : null}
+
         <div className="event-details-dialog__actions">
-          {isRecurring ? (
+          {canManageEvent && isRecurring ? (
             <>
               <button className="event-details-dialog__edit" type="button" onClick={onEditOccurrence}>
                 עריכת המופע הזה
@@ -101,7 +109,7 @@ export function EventDetailsDialog({
                 מחיקת כל הסדרה
               </button>
             </>
-          ) : (
+          ) : canManageEvent ? (
             <>
               <button className="event-details-dialog__edit" type="button" onClick={onEdit}>
                 עריכת אירוע
@@ -110,7 +118,10 @@ export function EventDetailsDialog({
                 מחיקת אירוע
               </button>
             </>
-          )}
+          ) : null}
+          <button className="event-details-dialog__transportation" type="button" onClick={onOpenTransportation}>
+            {transportationPlan === null ? '+ הוסף הסעה' : 'עריכת הסעה'}
+          </button>
           <button className="event-details-dialog__close" type="button" onClick={onClose}>
             סגירה
           </button>
@@ -118,4 +129,36 @@ export function EventDetailsDialog({
       </section>
     </div>
   );
+}
+
+function TransportationDetails({ plan }: { plan: TransportationPlan }) {
+  return (
+    <section className="event-details-transportation">
+      <h3>הסעה</h3>
+      {plan.outbound !== null ? <TransportationLegDetails title="הלוך" leg={plan.outbound} /> : null}
+      {plan.returnTrip !== null ? <TransportationLegDetails title="חזור" leg={plan.returnTrip} /> : null}
+    </section>
+  );
+}
+
+function TransportationLegDetails({ title, leg }: { title: string; leg: TransportationLeg }) {
+  const route = formatRoute(leg.from, leg.to);
+
+  return (
+    <div className="event-details-transportation__leg">
+      <h4>{title}</h4>
+      <p>
+        {leg.driverName} · {leg.time}
+      </p>
+      {route !== null ? <p>{route}</p> : null}
+    </div>
+  );
+}
+
+function formatRoute(from: string | null, to: string | null): string | null {
+  if (from === null && to === null) {
+    return null;
+  }
+
+  return `${from ?? 'לא צוין'} -> ${to ?? 'לא צוין'}`;
 }

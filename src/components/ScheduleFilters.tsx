@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+﻿import type { ReactNode } from 'react';
 import { eventCategories } from '../data/eventCategories';
 import type { Child, EventCategory } from '../models';
 
@@ -25,8 +25,10 @@ interface ScheduleFiltersProps {
   children: Child[];
   childFilter: ChildFilter;
   categoryFilter: CategoryFilter;
+  showOnlyWithTransportation: boolean;
   onChildFilterChange: (filter: ChildFilter) => void;
   onCategoryFilterChange: (filter: CategoryFilter) => void;
+  onShowOnlyWithTransportationChange: (value: boolean) => void;
 }
 
 const categoryFilterValues: CategoryFilter[] = [
@@ -49,11 +51,13 @@ export function ScheduleFilters({
   children,
   childFilter,
   categoryFilter,
+  showOnlyWithTransportation,
   onChildFilterChange,
   onCategoryFilterChange,
+  onShowOnlyWithTransportationChange,
 }: ScheduleFiltersProps) {
   return (
-    <section className="schedule-filters" aria-label="מסנני לו״ז">
+    <section className="schedule-filters" aria-label="מסנני לוז">
       <FilterGroup label="ילד:">
         {[{ id: 'all', name: 'הכל' }, ...children].map((filter) => (
           <button
@@ -80,6 +84,14 @@ export function ScheduleFilters({
           </button>
         ))}
       </FilterGroup>
+      <label className="transportation-filter-toggle">
+        <input
+          type="checkbox"
+          checked={showOnlyWithTransportation}
+          onChange={(event) => onShowOnlyWithTransportationChange(event.target.checked)}
+        />
+        <span>הצג רק אירועים עם הסעה</span>
+      </label>
     </section>
   );
 }

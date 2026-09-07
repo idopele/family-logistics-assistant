@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { eventExceptions } from '../data/eventExceptions';
 import { events as seedEvents } from '../data/events';
 import type { Event, EventException } from '../models';
+import type { TransportationPlan } from '../models';
+import {
+  deleteTransportationPlansForEvent,
+  getTransportationPlanForScheduleOccurrence,
+} from './localTransportationStorage';
 import { getOccurrencesForDate, getOccurrencesForRange } from './scheduleEngine';
 
 const baseEvent: Event = {
@@ -38,6 +43,28 @@ function makeException(overrides: Partial<EventException> = {}): EventException 
     eventId: 'event-a',
     date: '2026-09-14',
     type: 'modified',
+    ...overrides,
+  };
+}
+
+function makeTransportationPlan(overrides: Partial<TransportationPlan> = {}): TransportationPlan {
+  return {
+    id: 'transport-a',
+    eventId: 'event-a',
+    occurrenceDate: '2026-09-14',
+    outbound: {
+      enabled: true,
+      driverName: 'אבא',
+      time: '16:50',
+      from: null,
+      to: 'Gym',
+      passengerChildIds: ['child-a'],
+      additionalPassengers: null,
+      notes: null,
+    },
+    returnTrip: null,
+    createdAt: '2026-09-01T00:00:00.000Z',
+    updatedAt: '2026-09-01T00:00:00.000Z',
     ...overrides,
   };
 }
@@ -300,5 +327,71 @@ describe('scheduleEngine', () => {
 
   it('throws when a range endDate is earlier than startDate', () => {
     expect(() => getOccurrencesForRange([makeEvent()], [], '2026-09-08', '2026-09-07')).toThrow();
+  });
+
+  it('links a one-time event occurrence to its transportation plan', () => {
+    const occurrence = getOccurrencesForDate([makeEvent({ date: '2026-09-08' })], [], '2026-09-08')[0];
+    const plan = makeTransportationPlan({ eventId: 'event-a', occurrenceDate: '2026-09-08' });
+
+    expect(occurrence).toBeDefined();
+    expect(getTransportationPlanForScheduleOccurrence([plan], occurrence!)).toBe(plan);
+  });
+
+  it('links recurring occurrences using eventId and occurrenceDate', () => {
+    const event = makeEvent({
+      date: null,
+      recurrence: { frequency: 'weekly', interval: 1, startDate: '2026-09-07', daysOfWeek: [1] },
+    });
+    const occurrence = getOccurrencesForDate([event], [], '2026-09-14')[0];
+    const plan = makeTransportationPlan({ eventId: 'event-a', occurrenceDate: '2026-09-14' });
+
+    expect(getTransportationPlanForScheduleOccurrence([plan], occurrence!)).toBe(plan);
+  });
+
+  it('allows two occurrences from the same recurring event to have different plans', () => {
+    const event = makeEvent({
+      date: null,
+      recurrence: { frequency: 'weekly', interval: 1, startDate: '2026-09-07', daysOfWeek: [1] },
+    });
+    const occurrences = getOccurrencesForRange([event], [], '2026-09-07', '2026-09-14');
+    const plans = [
+      makeTransportationPlan({ id: 'transport-1', occurrenceDate: '2026-09-07', outbound: { ...makeTransportationPlan().outbound!, driverName: 'אבא' } }),
+      makeTransportationPlan({ id: 'transport-2', occurrenceDate: '2026-09-14', outbound: { ...makeTransportationPlan().outbound!, driverName: 'אמא' } }),
+    ];
+
+    expect(getTransportationPlanForScheduleOccurrence(plans, occurrences[0]!)?.outbound?.driverName).toBe('אבא');
+    expect(getTransportationPlanForScheduleOccurrence(plans, occurrences[1]!)?.outbound?.driverName).toBe('אמא');
+  });
+
+  it('keeps transportation linkage when a modified exception changes title time and location', () => {
+    const event = makeEvent({
+      date: null,
+      recurrence: { frequency: 'weekly', interval: 1, startDate: '2026-09-07', daysOfWeek: [1] },
+    });
+    const exception = makeException({
+      date: '2026-09-14',
+      title: 'Changed activity',
+      startTime: '18:30',
+      location: 'New place',
+    });
+    const occurrence = getOccurrencesForDate([event], [exception], '2026-09-14')[0];
+    const plan = makeTransportationPlan({ occurrenceDate: '2026-09-14' });
+
+    expect(occurrence).toMatchObject({ title: 'Changed activity', startTime: '18:30', location: 'New place' });
+    expect(getTransportationPlanForScheduleOccurrence([plan], occurrence!)).toBe(plan);
+  });
+
+  it('cleans transportation when deleting a custom one-time event', () => {
+    const otherPlan = makeTransportationPlan({ id: 'transport-other', eventId: 'other-event' });
+
+    expect(deleteTransportationPlansForEvent([makeTransportationPlan(), otherPlan], 'event-a')).toEqual([otherPlan]);
+  });
+
+  it('cleans all transportation when deleting a recurring series', () => {
+    const firstPlan = makeTransportationPlan({ id: 'transport-1', occurrenceDate: '2026-09-07' });
+    const secondPlan = makeTransportationPlan({ id: 'transport-2', occurrenceDate: '2026-09-14' });
+    const otherPlan = makeTransportationPlan({ id: 'transport-other', eventId: 'other-event' });
+
+    expect(deleteTransportationPlansForEvent([firstPlan, secondPlan, otherPlan], 'event-a')).toEqual([otherPlan]);
   });
 });

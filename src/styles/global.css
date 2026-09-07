@@ -210,6 +210,44 @@ select {
   background: #0d665f;
 }
 
+.transportation-filter-toggle {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.45rem;
+  width: fit-content;
+  border: 1px solid #d8c9a6;
+  border-radius: 0.5rem;
+  background: #fff8e7;
+  color: #6b4f16;
+  font-size: 0.9rem;
+  font-weight: 900;
+  padding: 0.55rem 0.7rem;
+}
+
+.transportation-filter-toggle input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #a16207;
+}
+
+.transportation-week-summary {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  width: fit-content;
+  border: 1px solid #d8c9a6;
+  border-radius: 0.5rem;
+  background: #fffdf5;
+  color: #6b4f16;
+  padding: 0.55rem 0.7rem;
+}
+
+.transportation-week-summary strong,
+.transportation-week-summary span {
+  font-size: 0.9rem;
+}
+
 .dashboard-actions {
   display: flex;
   flex-wrap: wrap;
@@ -698,6 +736,17 @@ select {
   font-weight: 650;
 }
 
+.event-card__transportation {
+  display: grid;
+  gap: 0.15rem;
+  margin-top: 0.45rem;
+  border-top: 1px solid #eef2f7;
+  color: #5f4b1b;
+  font-size: 0.78rem;
+  font-weight: 850;
+  padding-top: 0.4rem;
+}
+
 .event-card__edit-cue {
   display: inline-block;
   margin-top: 0.45rem;
@@ -707,13 +756,19 @@ select {
 }
 
 .event-details-dialog,
-.delete-event-dialog {
+.delete-event-dialog,
+.transportation-dialog {
   width: min(100%, 34rem);
   border: 1px solid #dbe2ed;
   border-radius: 0.65rem;
   background: #ffffff;
   box-shadow: 0 1.5rem 4rem rgb(15 23 42 / 28%);
   padding: 1rem;
+}
+
+.transportation-dialog {
+  max-height: min(92vh, 52rem);
+  overflow: auto;
 }
 
 .event-details-dialog__header {
@@ -778,6 +833,38 @@ select {
   padding: 0.12rem 0.45rem;
 }
 
+.event-details-transportation {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0 0 1rem;
+  border: 1px solid #d8c9a6;
+  border-radius: 0.5rem;
+  background: #fffdf5;
+  padding: 0.7rem;
+}
+
+.event-details-transportation h3,
+.event-details-transportation h4,
+.event-details-transportation p {
+  margin: 0;
+}
+
+.event-details-transportation h3 {
+  color: #6b4f16;
+  font-size: 0.95rem;
+}
+
+.event-details-transportation h4 {
+  color: #334155;
+  font-size: 0.82rem;
+}
+
+.event-details-transportation p {
+  color: #334155;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
 .event-details-dialog__actions,
 .delete-event-dialog__actions {
   display: flex;
@@ -788,6 +875,7 @@ select {
 .event-details-dialog__edit,
 .event-details-dialog__delete,
 .event-details-dialog__close,
+.event-details-dialog__transportation,
 .delete-event-dialog__confirm,
 .delete-event-dialog__cancel {
   min-height: 2.4rem;
@@ -813,6 +901,82 @@ select {
   border: 1px solid #cfd7e6;
   background: #ffffff;
   color: #334155;
+}
+
+.event-details-dialog__transportation {
+  border: 1px solid #a16207;
+  background: #a16207;
+  color: #ffffff;
+}
+
+.transportation-dialog__header {
+  align-items: start;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.transportation-dialog__header h2,
+.transportation-dialog__header p {
+  margin: 0;
+}
+
+.transportation-dialog__header p {
+  color: #64748b;
+  font-weight: 850;
+}
+
+.transportation-form {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.transportation-leg,
+.passenger-field {
+  min-width: 0;
+  margin: 0;
+  border: 1px solid #dbe2ed;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  padding: 0.7rem;
+}
+
+.transportation-leg legend,
+.passenger-field legend {
+  color: #334155;
+  font-size: 0.9rem;
+  font-weight: 900;
+  padding: 0 0.25rem;
+}
+
+.transportation-leg__fields {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.7rem;
+}
+
+.passenger-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.8rem;
+}
+
+.transportation-dialog__confirm-remove {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  border: 1px solid #fecaca;
+  border-radius: 0.5rem;
+  background: #fef2f2;
+  padding: 0.65rem;
+}
+
+.transportation-dialog__confirm-remove p {
+  width: 100%;
+  margin: 0;
+  color: #991b1b;
+  font-weight: 900;
 }
 
 .delete-event-dialog__cancel {
@@ -842,7 +1006,7 @@ select {
   }
 
   .schedule-filters {
-    grid-template-columns: repeat(2, minmax(0, max-content));
+    grid-template-columns: repeat(2, minmax(0, max-content)) minmax(0, max-content);
     justify-content: start;
   }
 
@@ -858,6 +1022,10 @@ select {
 
   .weekly-grid {
     grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
+  .transportation-leg__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .day-schedule {
