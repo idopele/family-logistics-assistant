@@ -58,11 +58,13 @@ function TransportationPlanSummary({ plan }: { plan: TransportationPlan }) {
       {plan.outbound !== null ? (
         <span>
           🚗 הלוך: {plan.outbound.driverName} · {plan.outbound.time}
+          {plan.outbound.occursNextDay ? ' · למחרת' : ''}
         </span>
       ) : null}
       {plan.returnTrip !== null ? (
         <span>
           🚗 חזור: {plan.returnTrip.driverName} · {plan.returnTrip.time}
+          {plan.returnTrip.occursNextDay ? ' · למחרת' : ''}
         </span>
       ) : null}
     </div>

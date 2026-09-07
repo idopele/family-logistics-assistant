@@ -18,6 +18,7 @@ const transportationPlan: TransportationPlan = {
     enabled: true,
     driverName: 'אבא',
     time: '16:50',
+    occursNextDay: false,
     from: 'הבית',
     to: 'ראשונים',
     passengerChildIds: ['daniel'],
@@ -46,6 +47,31 @@ describe('localTransportationStorage', () => {
     saveTransportationPlans([transportationPlan]);
 
     expect(loadTransportationPlans()).toEqual([transportationPlan]);
+  });
+
+  it('migrates old stored transportation legs to occursNextDay false', () => {
+    const storage = createMemoryStorage();
+    const oldPlan = {
+      ...transportationPlan,
+      outbound: {
+        enabled: true,
+        driverName: 'אבא',
+        time: '16:50',
+        from: 'הבית',
+        to: 'ראשונים',
+        passengerChildIds: ['daniel'],
+        additionalPassengers: null,
+        notes: null,
+      },
+    };
+    storage.setItem(transportationPlansStorageKey, JSON.stringify([oldPlan]));
+    vi.stubGlobal('localStorage', storage);
+
+    const loadedPlans = loadTransportationPlans();
+    const persistedPlans = JSON.parse(storage.getItem(transportationPlansStorageKey) ?? '[]') as TransportationPlan[];
+
+    expect(loadedPlans[0]?.outbound?.occursNextDay).toBe(false);
+    expect(persistedPlans[0]?.outbound?.occursNextDay).toBe(false);
   });
 
   it('returns an empty array for invalid JSON', () => {

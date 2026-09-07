@@ -6,6 +6,7 @@ import { DeleteEventDialog } from '../components/DeleteEventDialog';
 import { EventDetailsDialog } from '../components/EventDetailsDialog';
 import { OccurrenceEditDialog } from '../components/OccurrenceEditDialog';
 import { ScheduleFilters, type CategoryFilter, type ChildFilter } from '../components/ScheduleFilters';
+import { TransportationConflicts } from '../components/TransportationConflicts';
 import { TransportationDialog } from '../components/TransportationDialog';
 import { WeekNavigation } from '../components/WeekNavigation';
 import { children as seedChildren } from '../data/children';
@@ -29,6 +30,8 @@ import {
   upsertTransportationPlan,
 } from '../services/localTransportationStorage';
 import { getOccurrencesForRange } from '../services/scheduleEngine';
+import { detectTransportationConflicts } from '../services/transportationConflictDetection';
+import { addDays } from '../utils/dateTime';
 import {
   formatWeekRange,
   getNextWeekStart,
@@ -106,6 +109,22 @@ export function HomePage() {
 
     return getOccurrencesForRange(allEvents, allEventExceptions, weekStartDate, weekEndDate);
   }, [allEventExceptions, allEvents, weekDays, weekStartDate]);
+  const transportationConflictOccurrences = useMemo(() => {
+    const weekEndDate = weekDays[weekDays.length - 1]?.date ?? weekStartDate;
+
+    return getOccurrencesForRange(allEvents, allEventExceptions, addDays(weekStartDate, -1), addDays(weekEndDate, 1));
+  }, [allEventExceptions, allEvents, weekDays, weekStartDate]);
+  const transportationConflicts = useMemo(() => {
+    const weekEndDate = weekDays[weekDays.length - 1]?.date ?? weekStartDate;
+
+    return detectTransportationConflicts(
+      transportationPlans,
+      transportationConflictOccurrences,
+      activeChildren,
+      weekStartDate,
+      weekEndDate,
+    );
+  }, [activeChildren, transportationConflictOccurrences, transportationPlans, weekDays, weekStartDate]);
   const weekOccurrences = useMemo(() => {
     return weekAllOccurrences.filter((occurrence) => {
       const matchesChild = childFilter === 'all' || occurrence.childId === childFilter;
@@ -295,6 +314,7 @@ export function HomePage() {
             </span>
           </section>
         ) : null}
+        <TransportationConflicts conflicts={transportationConflicts} />
         <div className="dashboard-actions">
           <button className="add-event-button" type="button" onClick={() => setIsAddEventOpen(true)}>
             + הוסף אירוע
@@ -345,6 +365,8 @@ export function HomePage() {
         child={transportationOccurrence === null ? null : childrenById.get(transportationOccurrence.childId) ?? null}
         children={activeChildren}
         existingPlan={transportationDialogPlan}
+        transportationPlans={transportationPlans}
+        validationOccurrences={transportationConflictOccurrences}
         onClose={() => setTransportationOccurrence(null)}
         onSave={handleSaveTransportationPlan}
         onDelete={handleDeleteTransportationPlan}

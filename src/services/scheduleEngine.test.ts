@@ -56,6 +56,7 @@ function makeTransportationPlan(overrides: Partial<TransportationPlan> = {}): Tr
       enabled: true,
       driverName: 'אבא',
       time: '16:50',
+      occursNextDay: false,
       from: null,
       to: 'Gym',
       passengerChildIds: ['child-a'],

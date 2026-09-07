@@ -22,7 +22,14 @@ export function loadTransportationPlans(): TransportationPlan[] {
       return [];
     }
 
-    return parsedValue.filter(isStoredTransportationPlan);
+    const storedPlans = parsedValue.filter(isStoredTransportationPlan);
+    const migratedPlans = storedPlans.map(migrateStoredTransportationPlan);
+
+    if (hasMigratedPlans(storedPlans, migratedPlans)) {
+      saveTransportationPlans(migratedPlans);
+    }
+
+    return migratedPlans;
   } catch {
     return [];
   }
@@ -120,6 +127,7 @@ function isStoredTransportationLeg(value: unknown): value is TransportationLeg {
     leg.enabled === true &&
     typeof leg.driverName === 'string' &&
     typeof leg.time === 'string' &&
+    (typeof leg.occursNextDay === 'boolean' || leg.occursNextDay === undefined) &&
     (typeof leg.from === 'string' || leg.from === null) &&
     (typeof leg.to === 'string' || leg.to === null) &&
     Array.isArray(leg.passengerChildIds) &&
@@ -127,4 +135,34 @@ function isStoredTransportationLeg(value: unknown): value is TransportationLeg {
     (typeof leg.additionalPassengers === 'string' || leg.additionalPassengers === null) &&
     (typeof leg.notes === 'string' || leg.notes === null)
   );
+}
+
+function migrateStoredTransportationPlan(plan: TransportationPlan): TransportationPlan {
+  return {
+    ...plan,
+    outbound: migrateStoredTransportationLeg(plan.outbound),
+    returnTrip: migrateStoredTransportationLeg(plan.returnTrip),
+  };
+}
+
+function migrateStoredTransportationLeg(leg: TransportationLeg | null): TransportationLeg | null {
+  if (leg === null) {
+    return null;
+  }
+
+  return {
+    ...leg,
+    occursNextDay: leg.occursNextDay ?? false,
+  };
+}
+
+function hasMigratedPlans(originalPlans: TransportationPlan[], migratedPlans: TransportationPlan[]): boolean {
+  return originalPlans.some((plan, index) => {
+    const migratedPlan = migratedPlans[index];
+
+    return (
+      plan.outbound?.occursNextDay !== migratedPlan?.outbound?.occursNextDay ||
+      plan.returnTrip?.occursNextDay !== migratedPlan?.returnTrip?.occursNextDay
+    );
+  });
 }

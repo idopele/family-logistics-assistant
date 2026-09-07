@@ -2,6 +2,7 @@ export interface TransportationLeg {
   enabled: boolean;
   driverName: string;
   time: string;
+  occursNextDay: boolean;
   from: string | null;
   to: string | null;
   passengerChildIds: string[];

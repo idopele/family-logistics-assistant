@@ -149,6 +149,7 @@ function TransportationLegDetails({ title, leg }: { title: string; leg: Transpor
       <h4>{title}</h4>
       <p>
         {leg.driverName} · {leg.time}
+        {leg.occursNextDay ? ' · למחרת' : ''}
       </p>
       {route !== null ? <p>{route}</p> : null}
     </div>

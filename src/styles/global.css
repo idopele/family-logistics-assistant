@@ -248,6 +248,66 @@ select {
   font-size: 0.9rem;
 }
 
+.transportation-conflicts {
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid #f1c27d;
+  border-radius: 0.5rem;
+  background: #fff7ed;
+  color: #7c2d12;
+  padding: 0.55rem 0.7rem;
+}
+
+.transportation-conflicts summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 950;
+}
+
+.transportation-conflicts__list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.6rem;
+}
+
+.transportation-conflict {
+  display: grid;
+  gap: 0.35rem;
+  border-top: 1px solid #fed7aa;
+  padding-top: 0.55rem;
+}
+
+.transportation-conflict h3,
+.transportation-conflict p {
+  margin: 0;
+}
+
+.transportation-conflict h3 {
+  font-size: 0.9rem;
+}
+
+.transportation-conflict__driver,
+.transportation-conflict__gap {
+  font-weight: 900;
+}
+
+.transportation-conflict__item {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.transportation-conflict__item time {
+  direction: ltr;
+  font-weight: 950;
+  unicode-bidi: isolate;
+}
+
+.transportation-conflict__message {
+  color: #9a3412;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
 .dashboard-actions {
   display: flex;
   flex-wrap: wrap;
@@ -962,6 +1022,11 @@ select {
   gap: 0.45rem 0.8rem;
 }
 
+.transportation-next-day-field {
+  align-self: end;
+  min-height: 2.45rem;
+}
+
 .transportation-dialog__confirm-remove {
   display: flex;
   flex-wrap: wrap;
@@ -977,6 +1042,52 @@ select {
   margin: 0;
   color: #991b1b;
   font-weight: 900;
+}
+
+.transportation-save-conflict {
+  display: grid;
+  gap: 0.55rem;
+  border: 1px solid #f1c27d;
+  border-radius: 0.5rem;
+  background: #fff7ed;
+  color: #7c2d12;
+  padding: 0.75rem;
+}
+
+.transportation-save-conflict[data-status='blocked'] {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.transportation-save-conflict h3,
+.transportation-save-conflict p {
+  margin: 0;
+}
+
+.transportation-save-conflict__list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.transportation-save-conflict__item {
+  display: grid;
+  gap: 0.2rem;
+  border-top: 1px solid rgb(124 45 18 / 18%);
+  padding-top: 0.45rem;
+}
+
+.transportation-save-conflict__item p,
+.transportation-save-conflict__item span {
+  color: inherit;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.transportation-save-conflict__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .delete-event-dialog__cancel {
