@@ -1,17 +1,18 @@
-import type { TransportationConflict, TransportationConflictItem } from '../models';
+﻿import type { TransportationConflict, TransportationConflictItem } from '../models';
 
 interface TransportationConflictsProps {
   conflicts: TransportationConflict[];
+  summaryLabel?: string;
 }
 
-export function TransportationConflicts({ conflicts }: TransportationConflictsProps) {
+export function TransportationConflicts({ conflicts, summaryLabel }: TransportationConflictsProps) {
   if (conflicts.length === 0) {
     return null;
   }
 
   return (
     <details className="transportation-conflicts">
-      <summary>⚠️ {conflicts.length} התנגשויות אפשריות בהסעות</summary>
+      <summary>{summaryLabel ?? `⚠️ ${conflicts.length} התנגשויות אפשריות בהסעות`}</summary>
       <div className="transportation-conflicts__list">
         {conflicts.map((conflict) => (
           <article className="transportation-conflict" key={conflict.id}>

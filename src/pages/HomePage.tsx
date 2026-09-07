@@ -4,6 +4,7 @@ import { AddEventDialog } from '../components/AddEventDialog';
 import { DaySchedule } from '../components/DaySchedule';
 import { DeleteEventDialog } from '../components/DeleteEventDialog';
 import { EventDetailsDialog } from '../components/EventDetailsDialog';
+import { FamilyActionCenter } from '../components/FamilyActionCenter';
 import { OccurrenceEditDialog } from '../components/OccurrenceEditDialog';
 import { ScheduleFilters, type CategoryFilter, type ChildFilter } from '../components/ScheduleFilters';
 import { TransportationConflicts } from '../components/TransportationConflicts';
@@ -31,6 +32,7 @@ import {
 } from '../services/localTransportationStorage';
 import { getOccurrencesForRange } from '../services/scheduleEngine';
 import { detectTransportationConflicts } from '../services/transportationConflictDetection';
+import { buildFamilyActionCenterData } from '../services/familyActionCenter';
 import { addDays } from '../utils/dateTime';
 import {
   formatWeekRange,
@@ -50,6 +52,8 @@ type PendingConfirmation =
 
 export function HomePage() {
   const today = useMemo(() => getTodayDateString(), []);
+  const currentTime = useMemo(() => getCurrentTimeString(), []);
+  const currentWeekStartDate = useMemo(() => getSundayOfWeek(today), [today]);
   const [weekStartDate, setWeekStartDate] = useState(() => getSundayOfWeek(today));
   const [childFilter, setChildFilter] = useState<ChildFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
@@ -149,6 +153,18 @@ export function HomePage() {
       totalLegs: outboundCount + returnCount,
     };
   }, [transportationPlans, weekAllOccurrences]);
+  const familyActionCenterData = useMemo(
+    () =>
+      buildFamilyActionCenterData({
+        events: allEvents,
+        exceptions: allEventExceptions,
+        transportationPlans,
+        children: activeChildren,
+        today,
+        currentTime,
+      }),
+    [activeChildren, allEventExceptions, allEvents, currentTime, today, transportationPlans],
+  );
 
   function handleSaveCustomEvent(event: Event) {
     const nextCustomEvents = [...customEvents, event];
@@ -331,6 +347,15 @@ export function HomePage() {
         </div>
       </header>
 
+      <FamilyActionCenter
+        data={familyActionCenterData}
+        childrenById={childrenById}
+        transportationPlansByOccurrence={transportationPlansByOccurrence}
+        isViewingCurrentWeek={weekStartDate === currentWeekStartDate}
+        onShowCurrentWeek={() => setWeekStartDate(currentWeekStartDate)}
+        onOccurrenceSelect={setSelectedOccurrence}
+      />
+
       <section className="weekly-grid" aria-label="לוח שבועי">
         {weekDays.map((day) => (
           <DaySchedule
@@ -417,4 +442,10 @@ export function HomePage() {
 
 function getTransportationKey(eventId: string, occurrenceDate: string): string {
   return `${eventId}|${occurrenceDate}`;
+}
+
+function getCurrentTimeString(): string {
+  const now = new Date();
+
+  return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 }

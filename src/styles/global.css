@@ -315,6 +315,163 @@ select {
   justify-content: start;
 }
 
+.family-action-center {
+  display: grid;
+  gap: 0.75rem;
+  max-width: min(100%, 112rem);
+  margin: 0 auto 0.9rem;
+  border: 1px solid #dbe2ed;
+  border-radius: 0.6rem;
+  background: #ffffff;
+  box-shadow: 0 0.5rem 1.5rem rgb(16 24 39 / 7%);
+  padding: 0.8rem;
+}
+
+.family-action-center__header {
+  align-items: start;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.family-action-center__header h2,
+.family-action-center__header p {
+  margin: 0;
+}
+
+.family-action-center__header h2 {
+  color: #101827;
+  font-size: 1.35rem;
+}
+
+.family-action-center__header p {
+  color: #64748b;
+  font-weight: 850;
+}
+
+.family-action-center__week-button {
+  min-height: 2.2rem;
+  border: 1px solid #cfd7e6;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 900;
+  padding: 0 0.8rem;
+}
+
+.family-action-center__counts,
+.family-action-center__children {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.family-action-center__counts span {
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 900;
+  padding: 0.18rem 0.55rem;
+}
+
+.child-today-card {
+  flex: 1 1 12rem;
+  min-width: 0;
+  border: 1px solid #e0e6ef;
+  border-right: 0.35rem solid var(--child-color);
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  padding: 0.55rem 0.65rem;
+}
+
+.child-today-card h3,
+.child-today-card p {
+  margin: 0;
+}
+
+.child-today-card h3 {
+  color: var(--child-color);
+  font-size: 0.95rem;
+}
+
+.child-today-card p,
+.child-today-card span {
+  color: #334155;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.family-action-section {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.family-action-section h3 {
+  margin: 0;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
+.family-action-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.family-action-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  width: 100%;
+  border: 1px solid #e6ebf2;
+  border-radius: 0.45rem;
+  background: #ffffff;
+  color: #172033;
+  padding: 0.45rem 0.55rem;
+  text-align: inherit;
+}
+
+.family-action-row:hover {
+  background: #f8fafc;
+}
+
+.family-action-row time {
+  direction: ltr;
+  font-weight: 950;
+  unicode-bidi: isolate;
+}
+
+.family-action-row em {
+  color: #475569;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.family-action-row small {
+  color: #64748b;
+  font-weight: 800;
+}
+
+.family-action-row b {
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.45rem;
+}
+
+.family-action-row--static {
+  cursor: default;
+}
+
+.family-action-center__empty {
+  margin: 0;
+  color: #64748b;
+  font-weight: 850;
+}
+
 .add-event-button,
 .add-child-button {
   justify-self: start;
