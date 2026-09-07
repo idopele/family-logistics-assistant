@@ -27,6 +27,14 @@ npm run dev
 npm run build
 ```
 
+## Private MVP Deployment
+
+This is a frontend-only MVP intended for private hosting on Cloudflare Pages. See `DEPLOYMENT.md` for the manual deployment checklist and exact build settings.
+
+Important: this deployment must be protected by Cloudflare Access before the URL is shared with family members. The app currently has no in-app authentication.
+
+User-created events, children, occurrence changes, and transportation plans are stored in browser `localStorage`, so custom data is device-local. Shared backend synchronization is not implemented yet; only bundled seed schedule data is common across deployments.
+
 ## Project Structure
 
 ```text
