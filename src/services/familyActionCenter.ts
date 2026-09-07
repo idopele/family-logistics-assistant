@@ -21,6 +21,7 @@ export interface ChildTodaySummaryData {
   nextOccurrence: ScheduleOccurrence | null;
   hasNonSchoolOccurrencesToday: boolean;
   schoolLessonCount: number;
+  lastSchoolLessonStartTime: string | null;
 }
 
 export interface TodayTransportationLeg {
@@ -231,12 +232,16 @@ function getChildSummaries(
 ): ChildTodaySummaryData[] {
   return children.map((child) => {
     const childOccurrences = todayOccurrences.filter((occurrence) => occurrence.childId === child.id);
+    const schoolOccurrences = childOccurrences
+      .filter((occurrence) => occurrence.category === 'school')
+      .sort(compareOccurrencesByTime);
 
     return {
       child,
       nextOccurrence: remainingNonSchoolOccurrences.find((occurrence) => occurrence.childId === child.id) ?? null,
       hasNonSchoolOccurrencesToday: childOccurrences.some((occurrence) => occurrence.category !== 'school'),
-      schoolLessonCount: childOccurrences.filter((occurrence) => occurrence.category === 'school').length,
+      schoolLessonCount: schoolOccurrences.length,
+      lastSchoolLessonStartTime: schoolOccurrences[schoolOccurrences.length - 1]?.startTime ?? null,
     };
   });
 }

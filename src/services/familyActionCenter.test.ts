@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { translations } from '../i18n';
 import type { Child, Event, EventException, TransportationLeg, TransportationPlan } from '../models';
 import { getTransportationPlanForScheduleOccurrence } from './localTransportationStorage';
 import { getOccurrencesForDate } from './scheduleEngine';
@@ -110,6 +111,61 @@ describe('familyActionCenter', () => {
     expect(data.remainingNonSchoolOccurrences).toHaveLength(1);
     expect(data.remainingNonSchoolOccurrences[0]?.category).toBe('basketball');
     expect(data.childSummaries[0]?.schoolLessonCount).toBe(1);
+  });
+
+  it('includes the latest school lesson start time in child summaries', () => {
+    const data = buildFamilyActionCenterData({
+      events: [
+        makeEvent({ id: 'school-a', category: 'school', title: 'Math', startTime: '08:00' }),
+        makeEvent({ id: 'school-b', category: 'school', title: 'Science', startTime: '13:30' }),
+      ],
+      exceptions: [],
+      transportationPlans: [],
+      children,
+      today: '2026-09-07',
+      currentTime: '07:30',
+    });
+
+    expect(data.childSummaries[0]).toMatchObject({
+      schoolLessonCount: 2,
+      lastSchoolLessonStartTime: '13:30',
+    });
+  });
+
+  it('uses modified school occurrence times from the Schedule Engine', () => {
+    const data = buildFamilyActionCenterData({
+      events: [makeEvent({ id: 'school-a', category: 'school', title: 'Math', startTime: '08:00' })],
+      exceptions: [makeException({ eventId: 'school-a', startTime: '09:15' })],
+      transportationPlans: [],
+      children,
+      today: '2026-09-07',
+      currentTime: '07:30',
+    });
+
+    expect(data.childSummaries[0]?.lastSchoolLessonStartTime).toBe('09:15');
+  });
+
+  it('preserves empty school summary behavior when there are no school events', () => {
+    const data = buildFamilyActionCenterData({
+      events: [makeEvent()],
+      exceptions: [],
+      transportationPlans: [],
+      children,
+      today: '2026-09-07',
+      currentTime: '12:00',
+    });
+
+    expect(data.childSummaries[0]).toMatchObject({
+      schoolLessonCount: 0,
+      lastSchoolLessonStartTime: null,
+    });
+  });
+
+  it('has Hebrew and English labels for the school timing summary', () => {
+    expect(translations.he.schoolToday).toBe('בית ספר היום:');
+    expect(translations.he.lastLesson).toBe('שיעור אחרון');
+    expect(translations.en.schoolToday).toBe('School today:');
+    expect(translations.en.lastLesson).toBe('Last lesson');
   });
 
   it('resolves the next occurrence per child and skips passed occurrences', () => {

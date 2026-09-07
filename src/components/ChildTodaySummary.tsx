@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { useUiPreferences } from '../i18n';
+import { useUiPreferences, type Language, type TranslationKey } from '../i18n';
 import type { ChildTodaySummaryData } from '../services/familyActionCenter';
 import { formatActionCenterTime } from '../services/familyActionCenter';
 
@@ -8,7 +8,7 @@ interface ChildTodaySummaryProps {
 }
 
 export function ChildTodaySummary({ summary }: ChildTodaySummaryProps) {
-  const { t } = useUiPreferences();
+  const { language, t } = useUiPreferences();
   const style = { '--child-color': summary.child.color } as CSSProperties;
 
   return (
@@ -28,7 +28,20 @@ export function ChildTodaySummary({ summary }: ChildTodaySummaryProps) {
       ) : (
         <p>{t('noExtraToday')}</p>
       )}
-      {summary.schoolLessonCount > 0 ? <span>{t('schoolToday')} {summary.schoolLessonCount} {t('lessons')}</span> : null}
+      {summary.schoolLessonCount > 0 ? (
+        <span>
+          {t('schoolToday')} {formatLessonCount(summary.schoolLessonCount, language, t)} · {t('lastLesson')}:{' '}
+          {summary.lastSchoolLessonStartTime}
+        </span>
+      ) : null}
     </article>
   );
+}
+
+function formatLessonCount(count: number, language: Language, t: (key: TranslationKey) => string): string {
+  if (language === 'he') {
+    return count === 1 ? `${t('lesson')} ${count}` : `${count} ${t('lessons')}`;
+  }
+
+  return count === 1 ? `${count} ${t('lesson')}` : `${count} ${t('lessons')}`;
 }
