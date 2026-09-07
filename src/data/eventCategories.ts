@@ -14,5 +14,8 @@ export const eventCategories: Record<EventCategory, string> = {
   birthday: 'יום הולדת',
   exam: 'מבחן',
   transportation: 'הסעה',
+  parentMeeting: 'יום הורים',
+  performance: 'מופע',
+  openPractice: 'אימון פתוח',
   other: 'אחר',
 };

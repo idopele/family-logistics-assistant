@@ -12,4 +12,7 @@ export type EventCategory =
   | 'birthday'
   | 'exam'
   | 'transportation'
+  | 'parentMeeting'
+  | 'performance'
+  | 'openPractice'
   | 'other';
