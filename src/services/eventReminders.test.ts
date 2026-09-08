@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Event, EventException, EventReminder, ScheduleOccurrence } from '../models';
 import { isEventReminder as isApiEventReminder } from '../../functions/api/sharedData';
 import {
+  buildEventDeepLinkUrl,
   createEventReminder,
   formatReminderLabel,
   getReminderAccessibleLabel,
@@ -11,6 +12,7 @@ import {
   parseEventDeepLink,
   removeEventDeepLinkParams,
   resolveDeepLinkedOccurrence,
+  saveEventWithOptionalReminder,
 } from './eventReminders';
 import {
   deleteSharedEventReminderInState,
@@ -222,6 +224,106 @@ describe('event reminder foundations', () => {
     expect(isApiEventReminder({ ...reminderFor('event-a', '2026-09-08'), reminderMinutesBefore: 10 })).toBe(false);
   });
 
+
+  it('builds copied event links with the current origin and occurrence params', () => {
+    const occurrence = occurrenceFor(baseOneTimeEvent);
+    const link = buildEventDeepLinkUrl(occurrence, 'https://family.example.test');
+    const url = new URL(link);
+
+    expect(url.origin).toBe('https://family.example.test');
+    expect(url.hostname).not.toBe('family-logistics-assistant.pages.dev');
+    expect(url.searchParams.get('eventId')).toBe(baseOneTimeEvent.id);
+    expect(url.searchParams.get('date')).toBe('2026-09-08');
+  });
+
+  it('copied links reopen the exact resolved occurrence', () => {
+    const link = buildEventDeepLinkUrl(occurrenceFor(baseOneTimeEvent), 'https://family.example.test');
+    const parsed = parseEventDeepLink(new URL(link).search);
+
+    expect(parsed).not.toBeNull();
+    expect(parsed === null ? null : resolveDeepLinkedOccurrence([baseOneTimeEvent], [], parsed.eventId, parsed.date)?.eventId).toBe(
+      baseOneTimeEvent.id,
+    );
+  });
+
+  it('creates no reminder when no reminder is selected during event creation', async () => {
+    const savedReminders: EventReminder[] = [];
+    const result = await saveEventWithOptionalReminder({
+      event: baseOneTimeEvent,
+      reminderMinutesBefore: null,
+      saveEvent: async () => true,
+      saveReminder: async (reminder) => {
+        savedReminders.push(reminder);
+        return true;
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.reminder).toBeNull();
+    expect(savedReminders).toEqual([]);
+  });
+
+  it('creates a one-time event reminder for the event date', async () => {
+    const result = await saveEventWithOptionalReminder({
+      event: baseOneTimeEvent,
+      reminderMinutesBefore: 30,
+      saveEvent: async () => true,
+      saveReminder: async () => true,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.reminder).toMatchObject({
+      eventId: baseOneTimeEvent.id,
+      occurrenceDate: '2026-09-08',
+      reminderMinutesBefore: 30,
+    });
+  });
+
+  it('creates a recurring event reminder for the first occurrence only', async () => {
+    const result = await saveEventWithOptionalReminder({
+      event: recurringEvent,
+      reminderMinutesBefore: 60,
+      saveEvent: async () => true,
+      saveReminder: async () => true,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.reminder?.occurrenceDate).toBe('2026-09-01');
+  });
+
+  it('does not create a reminder when event creation fails', async () => {
+    let didTryReminder = false;
+    const result = await saveEventWithOptionalReminder({
+      event: baseOneTimeEvent,
+      reminderMinutesBefore: 30,
+      saveEvent: async () => false,
+      saveReminder: async () => {
+        didTryReminder = true;
+        return true;
+      },
+    });
+
+    expect(result).toMatchObject({ ok: false, event: null, reminder: null, reminderSaveFailed: false });
+    expect(didTryReminder).toBe(false);
+  });
+
+  it('keeps the created event when reminder creation fails so retry does not need a new event', async () => {
+    let eventSaveCount = 0;
+    const result = await saveEventWithOptionalReminder({
+      event: baseOneTimeEvent,
+      reminderMinutesBefore: 30,
+      saveEvent: async () => {
+        eventSaveCount += 1;
+        return true;
+      },
+      saveReminder: async () => false,
+    });
+
+    expect(eventSaveCount).toBe(1);
+    expect(result.ok).toBe(false);
+    expect(result.event?.id).toBe(baseOneTimeEvent.id);
+    expect(result.reminderSaveFailed).toBe(true);
+  });
   it('ignores disabled reminders when matching an occurrence', () => {
     const occurrence = occurrenceFor(baseOneTimeEvent);
     const disabledReminder = { ...reminderFor(occurrence.eventId, occurrence.date), enabled: false };

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AddChildDialog } from '../components/AddChildDialog';
-import { AddEventDialog } from '../components/AddEventDialog';
+import { AddEventDialog, type AddEventSaveResult } from '../components/AddEventDialog';
 import { DaySchedule } from '../components/DaySchedule';
 import { DeleteEventDialog } from '../components/DeleteEventDialog';
 import { EventDetailsDialog } from '../components/EventDetailsDialog';
@@ -49,10 +49,10 @@ import { getOccurrencesForRange } from '../services/scheduleEngine';
 import {
   createEventReminder,
   getReminderForOccurrence,
-  isReminderMinutesBefore,
   parseEventDeepLink,
   removeEventDeepLinkParams,
   resolveDeepLinkedOccurrence,
+  saveEventWithOptionalReminder,
   type ReminderMinutesBefore,
 } from '../services/eventReminders';
 import { detectTransportationConflicts } from '../services/transportationConflictDetection';
@@ -336,27 +336,51 @@ export function HomePage() {
     }
   }
 
-  async function handleSaveCustomEvent(event: Event) {
-    const didSave = await runSharedMutation(() => upsertSharedEvent(event));
+  async function handleSaveCustomEvent(event: Event, reminderMinutesBefore: ReminderMinutesBefore | null): Promise<AddEventSaveResult> {
+    const result = await saveEventWithOptionalReminder({
+      event,
+      reminderMinutesBefore,
+      saveEvent: (eventToSave) => runSharedMutation(() => upsertSharedEvent(eventToSave)),
+      saveReminder: (reminderToSave) => runSharedMutation(() => upsertSharedEventReminder(reminderToSave)),
+    });
 
-    if (!didSave) {
-      return;
+    if (result.event === null) {
+      return { ok: false };
     }
 
-    setCustomEvents([...customEvents, event]);
+    const savedEvent = result.event;
+
+    setCustomEvents((currentEvents) =>
+      currentEvents.some((currentEvent) => currentEvent.id === savedEvent.id) ? currentEvents : [...currentEvents, savedEvent],
+    );
+
+    if (!result.ok) {
+      return { ok: false, message: t('eventSavedReminderSaveError'), savedEvent };
+    }
+
+    const savedReminder = result.reminder;
+
+    if (savedReminder !== null) {
+      setEventReminders((currentReminders) => upsertSharedEventReminderInState(currentReminders, savedReminder));
+    }
+
     setIsAddEventOpen(false);
+
+    return { ok: true };
   }
 
-  async function handleSaveEditedEvent(event: Event) {
+  async function handleSaveEditedEvent(event: Event): Promise<AddEventSaveResult> {
     const didSave = await runSharedMutation(() => upsertSharedEvent(event));
 
     if (!didSave) {
-      return;
+      return { ok: false };
     }
 
     setCustomEvents(updateCustomEvent(customEvents, event));
     setEventToEdit(null);
     setSelectedOccurrence(null);
+
+    return { ok: true };
   }
 
   async function handleSaveCustomChild(child: Child) {
@@ -474,10 +498,6 @@ export function HomePage() {
       }
 
       setEventReminders(deleteSharedEventReminderInState(eventReminders, selectedOccurrence.eventId, selectedOccurrence.date));
-      return;
-    }
-
-    if (!isReminderMinutesBefore(minutesBefore)) {
       return;
     }
 

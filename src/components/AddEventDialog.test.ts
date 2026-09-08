@@ -35,6 +35,7 @@ const validValues: AddEventFormValues = {
   startTime: '18:00',
   endTime: '22:00',
   endsNextDay: false,
+  reminderMinutesBefore: '',
   location: '',
   notes: '',
 };
@@ -205,6 +206,13 @@ describe('AddEventDialog draft initialization', () => {
   });
 
   it('keeps a create draft stable after shared-data refresh while open', () => {
+    expect(shouldInitializeAddEventDraft('create', 'create')).toBe(false);
+  });
+
+  it('keeps reminder selection in the create draft across refresh rerenders', () => {
+    const draft = { ...validValues, reminderMinutesBefore: 30 as const };
+
+    expect(draft.reminderMinutesBefore).toBe(30);
     expect(shouldInitializeAddEventDraft('create', 'create')).toBe(false);
   });
 

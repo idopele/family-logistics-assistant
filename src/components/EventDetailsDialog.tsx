@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { getEventCategoryLabel } from '../data/eventCategories';
 import { useUiPreferences } from '../i18n';
 import type { Child, Event, EventReminder, ScheduleOccurrence, TransportationLeg, TransportationPlan } from '../models';
 import {
+  buildEventDeepLinkUrl,
   formatReminderLabel,
   isReminderMinutesBefore,
   reminderMinuteOptions,
@@ -55,6 +57,7 @@ export function EventDetailsDialog({
   onReminderChange,
 }: EventDetailsDialogProps) {
   const { language, t } = useUiPreferences();
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   if (event === null) {
     return null;
@@ -64,6 +67,21 @@ export function EventDetailsDialog({
   const detailsDate = occurrence?.date ?? event.date;
   const timeLabel = details.endTime === null ? details.startTime : `${details.startTime}-${details.endTime}`;
   const isRecurring = event.recurrence !== null;
+
+  async function handleCopyEventLink() {
+    if (occurrence === null) {
+      return;
+    }
+
+    const link = buildEventDeepLinkUrl(occurrence, window.location.origin);
+
+    try {
+      await copyTextToClipboard(link);
+      setCopyStatus('copied');
+    } catch {
+      setCopyStatus('failed');
+    }
+  }
 
   return (
     <div className="dialog-backdrop" role="presentation">
@@ -191,13 +209,45 @@ export function EventDetailsDialog({
           <button className="event-details-dialog__transportation" type="button" onClick={onOpenTransportation}>
             {transportationPlan === null ? t('addTransportation') : t('editTransportation')}
           </button>
+          {occurrence !== null ? (
+            <button className="event-details-dialog__copy" type="button" onClick={() => void handleCopyEventLink()}>
+              {t('copyEventLink')}
+            </button>
+          ) : null}
           <button className="event-details-dialog__close" type="button" onClick={onClose}>
             {t('close')}
           </button>
         </div>
+        {copyStatus !== 'idle' ? (
+          <p className="event-details-dialog__copy-status">
+            {copyStatus === 'copied' ? t('linkCopied') : t('linkCopyFailed')}
+          </p>
+        ) : null}
       </section>
     </div>
   );
+}
+
+async function copyTextToClipboard(value: string): Promise<void> {
+  if (navigator.clipboard !== undefined) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = value;
+  textarea.setAttribute('readonly', 'true');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+
+  const didCopy = document.execCommand('copy');
+  document.body.removeChild(textarea);
+
+  if (!didCopy) {
+    throw new Error('Clipboard copy failed.');
+  }
 }
 
 function TransportationDetails({ plan }: { plan: TransportationPlan }) {

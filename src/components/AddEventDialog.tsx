@@ -2,6 +2,12 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { getEventCategoryLabel } from '../data/eventCategories';
 import { useUiPreferences, weekDayLabelsByLanguage, type Language } from '../i18n';
 import type { Child, Event, EventCategory, RecurrenceRule } from '../models';
+import {
+  formatReminderLabel,
+  isReminderMinutesBefore,
+  reminderMinuteOptions,
+  type ReminderMinutesBefore,
+} from '../services/eventReminders';
 import { getDayOfWeek, isValidDate, isValidTime } from '../utils/dateTime';
 
 interface AddEventDialogProps {
@@ -9,8 +15,12 @@ interface AddEventDialogProps {
   children: Child[];
   eventToEdit?: Event | null;
   onClose: () => void;
-  onSave: (event: Event) => void;
+  onSave: (event: Event, reminderMinutesBefore: ReminderMinutesBefore | null) => Promise<AddEventSaveResult> | AddEventSaveResult;
 }
+
+export type AddEventSaveResult =
+  | { ok: true }
+  | { ok: false; message?: string; savedEvent?: Event };
 
 export interface AddEventFormValues {
   childId: string;
@@ -28,6 +38,7 @@ export interface AddEventFormValues {
   startTime: string;
   endTime: string;
   endsNextDay: boolean;
+  reminderMinutesBefore: '' | ReminderMinutesBefore;
   location: string;
   notes: string;
 }
@@ -73,6 +84,7 @@ const initialValues: AddEventFormValues = {
   startTime: '',
   endTime: '',
   endsNextDay: false,
+  reminderMinutesBefore: '',
   location: '',
   notes: '',
 };
@@ -81,6 +93,7 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
   const { language, t } = useUiPreferences();
   const [values, setValues] = useState<AddEventFormValues>(initialValues);
   const [error, setError] = useState<string | null>(null);
+  const [partiallySavedEvent, setPartiallySavedEvent] = useState<Event | null>(null);
   const isEditMode = eventToEdit !== null && eventToEdit !== undefined;
   const lastInitializationKeyRef = useRef<string | null>(null);
 
@@ -98,6 +111,7 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
 
     setValues(eventToEdit ? getFormValuesFromEvent(eventToEdit) : getInitialValues(children));
     setError(null);
+    setPartiallySavedEvent(null);
     lastInitializationKeyRef.current = initializationKey;
   }, [children, eventToEdit, isOpen]);
 
@@ -105,7 +119,7 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
     return null;
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const validationError = validateAddEventForm(values, children, language);
@@ -115,9 +129,17 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
       return;
     }
 
-    const nextEvent = buildEventFromFormValues(values, eventToEdit);
+    const nextEvent = partiallySavedEvent ?? buildEventFromFormValues(values, eventToEdit);
+    const reminderMinutesBefore = isEditMode || values.reminderMinutesBefore === '' ? null : values.reminderMinutesBefore;
+    const result = await onSave(nextEvent, reminderMinutesBefore);
 
-    onSave(nextEvent);
+    if (!result.ok) {
+      setPartiallySavedEvent(result.savedEvent ?? partiallySavedEvent);
+      setError(result.message ?? t('sharedDataSaveError'));
+      return;
+    }
+
+    setPartiallySavedEvent(null);
     setValues(initialValues);
     setError(null);
   }
@@ -151,6 +173,7 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
   function handleCancel() {
     setValues(initialValues);
     setError(null);
+    setPartiallySavedEvent(null);
     onClose();
   }
 
@@ -366,6 +389,39 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
             <span>{t('endsNextDay')}</span>
           </label>
 
+          {!isEditMode ? (
+            <label className="form-field">
+              <span>{t('reminder')}</span>
+              <select
+                value={values.reminderMinutesBefore}
+                onChange={(event) => {
+                  const value = event.target.value;
+
+                  if (value === '') {
+                    setValues({ ...values, reminderMinutesBefore: '' });
+                    return;
+                  }
+
+                  const minutesBefore = Number(value);
+
+                  if (isReminderMinutesBefore(minutesBefore)) {
+                    setValues({ ...values, reminderMinutesBefore: minutesBefore });
+                  }
+                }}
+              >
+                <option value="">{t('noReminder')}</option>
+                {reminderMinuteOptions.map((minutesBefore) => (
+                  <option key={minutesBefore} value={minutesBefore}>
+                    {formatReminderLabel(minutesBefore, language)}
+                  </option>
+                ))}
+              </select>
+              {values.recurrenceMode === 'recurring' && values.reminderMinutesBefore !== '' ? (
+                <small className="form-field__help">{t('firstOccurrenceReminderHelp')}</small>
+              ) : null}
+            </label>
+          ) : null}
+
           <label className="form-field">
             <span>{t('location')}</span>
             <input value={values.location} onChange={(event) => setValues({ ...values, location: event.target.value })} />
@@ -434,6 +490,7 @@ function getFormValuesFromEvent(event: Event): AddEventFormValues {
     startTime: event.startTime,
     endTime: event.endTime ?? '',
     endsNextDay: event.endsNextDay,
+    reminderMinutesBefore: '',
     location: event.location ?? '',
     notes: event.notes ?? '',
   };

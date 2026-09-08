@@ -62,6 +62,48 @@ export function createEventReminder(
   };
 }
 
+export interface EventReminderCreationResult {
+  ok: boolean;
+  event: Event | null;
+  reminder: EventReminder | null;
+  reminderSaveFailed: boolean;
+}
+
+export async function saveEventWithOptionalReminder({
+  event,
+  reminderMinutesBefore,
+  saveEvent,
+  saveReminder,
+}: {
+  event: Event;
+  reminderMinutesBefore: ReminderMinutesBefore | null;
+  saveEvent: (event: Event) => Promise<boolean>;
+  saveReminder: (reminder: EventReminder) => Promise<boolean>;
+}): Promise<EventReminderCreationResult> {
+  const didSaveEvent = await saveEvent(event);
+
+  if (!didSaveEvent) {
+    return { ok: false, event: null, reminder: null, reminderSaveFailed: false };
+  }
+
+  if (reminderMinutesBefore === null) {
+    return { ok: true, event, reminder: null, reminderSaveFailed: false };
+  }
+
+  const reminder = createEventReminder(event.id, getInitialReminderOccurrenceDate(event), reminderMinutesBefore);
+  const didSaveReminder = await saveReminder(reminder);
+
+  if (!didSaveReminder) {
+    return { ok: false, event, reminder, reminderSaveFailed: true };
+  }
+
+  return { ok: true, event, reminder, reminderSaveFailed: false };
+}
+
+export function getInitialReminderOccurrenceDate(event: Event): string {
+  return event.date ?? event.recurrence?.startDate ?? '';
+}
+
 export function parseEventDeepLink(search: string): { eventId: string; date: string } | null {
   const params = new URLSearchParams(search);
   const eventId = params.get('eventId');
@@ -87,6 +129,18 @@ export function resolveDeepLinkedOccurrence(
   return getOccurrencesForDate(events, exceptions, date).find((occurrence) => occurrence.eventId === eventId) ?? null;
 }
 
+
+export function buildEventDeepLinkUrl(
+  occurrence: Pick<ScheduleOccurrence, 'eventId' | 'date'>,
+  origin: string,
+): string {
+  const url = new URL('/', origin);
+
+  url.searchParams.set('eventId', occurrence.eventId);
+  url.searchParams.set('date', occurrence.date);
+
+  return url.toString();
+}
 export function removeEventDeepLinkParams(search: string): string {
   const params = new URLSearchParams(search);
 

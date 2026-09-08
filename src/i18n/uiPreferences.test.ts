@@ -28,6 +28,7 @@ const validValues: AddEventFormValues = {
   startTime: '18:00',
   endTime: '22:00',
   endsNextDay: false,
+  reminderMinutesBefore: '',
   location: 'מיקה',
   notes: 'להביא נעליים',
 };
