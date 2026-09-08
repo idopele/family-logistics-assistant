@@ -200,6 +200,13 @@ export function HomePage() {
       return matchesChild && matchesCategory && matchesTransportation;
     });
   }, [categoryFilter, childFilter, showOnlyWithTransportation, transportationPlans, weekAllOccurrences]);
+  const categoryRankOccurrences = useMemo(() => {
+    if (specificDateFilter !== '' && isValidDate(specificDateFilter)) {
+      return weekAllOccurrences.filter((occurrence) => occurrence.date === specificDateFilter);
+    }
+
+    return weekAllOccurrences;
+  }, [specificDateFilter, weekAllOccurrences]);
   const weeklyTransportationSummary = useMemo(() => {
     const occurrenceKeys = new Set(weekAllOccurrences.map((occurrence) => getTransportationKey(occurrence.eventId, occurrence.date)));
     const plansInWeek = transportationPlans.filter((plan) => occurrenceKeys.has(getTransportationKey(plan.eventId, plan.occurrenceDate)));
@@ -588,7 +595,6 @@ export function HomePage() {
       <header className="dashboard-top">
         <div className="dashboard-top__main">
           <div className="dashboard-header">
-            <p>{t('appTitle')}</p>
             <h1 id="app-title">{t('appName')}</h1>
           </div>
           <div className="dashboard-time-controls">
@@ -624,6 +630,7 @@ export function HomePage() {
           children={activeChildren}
           childFilter={childFilter}
           categoryFilter={categoryFilter}
+          categoryRankOccurrences={categoryRankOccurrences}
           showOnlyWithTransportation={showOnlyWithTransportation}
           onChildFilterChange={setChildFilter}
           onCategoryFilterChange={setCategoryFilter}

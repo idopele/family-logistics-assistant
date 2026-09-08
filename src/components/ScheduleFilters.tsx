@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { getEventCategoryLabel } from '../data/eventCategories';
 import { useUiPreferences } from '../i18n';
 import type { Child, EventCategory, ScheduleOccurrence } from '../models';
@@ -60,7 +60,8 @@ export function getRankedCategoryFilters(
 
   for (const occurrence of occurrences) {
     if (isCategoryFilter(occurrence.category)) {
-      occurrenceCounts.set(occurrence.category, (occurrenceCounts.get(occurrence.category) ?? 0) + 1);
+      const category = occurrence.category as CategoryFilter;
+      occurrenceCounts.set(category, (occurrenceCounts.get(category) ?? 0) + 1);
     }
   }
 
@@ -116,7 +117,7 @@ export function ScheduleFilters({
             type="button"
             aria-pressed={childFilter === filter.id}
             key={filter.id}
-            style={filter.color === null ? undefined : ({ '--person-color': filter.color } as React.CSSProperties)}
+            style={filter.color === null ? undefined : ({ '--person-color': filter.color } as CSSProperties)}
             onClick={() => onChildFilterChange(filter.id)}
           >
             {filter.color !== null ? (
@@ -181,6 +182,6 @@ function FilterGroup({ label, variant, children }: { label: string; variant: 'fa
   );
 }
 
-function isCategoryFilter(value: EventCategory): value is CategoryFilter {
+function isCategoryFilter(value: EventCategory): boolean {
   return categoryFilterValues.includes(value as CategoryFilter);
 }
