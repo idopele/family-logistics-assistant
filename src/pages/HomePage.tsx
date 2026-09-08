@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AddChildDialog } from '../components/AddChildDialog';
 import { AddEventDialog } from '../components/AddEventDialog';
 import { DaySchedule } from '../components/DaySchedule';
@@ -15,7 +15,7 @@ import { WeekNavigation } from '../components/WeekNavigation';
 import { children as seedChildren } from '../data/children';
 import { eventExceptions } from '../data/eventExceptions';
 import { events } from '../data/events';
-import type { Child, Event, EventException, ScheduleOccurrence, TransportationPlan } from '../models';
+import type { Child, Event, EventException, EventReminder, ScheduleOccurrence, TransportationPlan } from '../models';
 import { deleteCustomEvent, updateCustomEvent } from '../services/localEventStorage';
 import {
   deleteCustomEventExceptionsForEvent,
@@ -29,6 +29,7 @@ import {
 } from '../services/localTransportationStorage';
 import {
   deleteSharedEvent,
+  deleteSharedEventReminder,
   deleteSharedTransportationPlan,
   hasLocalFamilyData,
   importLocalFamilyData,
@@ -38,10 +39,22 @@ import {
   upsertSharedChild,
   upsertSharedEvent,
   upsertSharedEventException,
+  upsertSharedEventReminder,
   upsertSharedTransportationPlan,
+  deleteSharedEventReminderInState,
+  upsertSharedEventReminderInState,
   type LocalFamilyData,
 } from '../services/sharedFamilyData';
 import { getOccurrencesForRange } from '../services/scheduleEngine';
+import {
+  createEventReminder,
+  getReminderForOccurrence,
+  isReminderMinutesBefore,
+  parseEventDeepLink,
+  removeEventDeepLinkParams,
+  resolveDeepLinkedOccurrence,
+  type ReminderMinutesBefore,
+} from '../services/eventReminders';
 import { detectTransportationConflicts } from '../services/transportationConflictDetection';
 import { buildFamilyActionCenterData } from '../services/familyActionCenter';
 import { useUiPreferences } from '../i18n';
@@ -73,6 +86,7 @@ export function HomePage() {
   const { language, t } = useUiPreferences();
   const today = useMemo(() => getTodayDateString(), []);
   const currentTime = useMemo(() => getCurrentTimeString(), []);
+  const deepLinkProcessedRef = useRef(false);
   const localMigrationData = useMemo<LocalFamilyData>(() => loadLocalFamilyDataForMigration(), []);
   const currentWeekStartDate = useMemo(() => getSundayOfWeek(today), [today]);
   const [weekStartDate, setWeekStartDate] = useState(() => getSundayOfWeek(today));
@@ -84,6 +98,7 @@ export function HomePage() {
   const [isAddEventOpen, setIsAddEventOpen] = useState(false);
   const [isAddChildOpen, setIsAddChildOpen] = useState(false);
   const [selectedOccurrence, setSelectedOccurrence] = useState<ScheduleOccurrence | null>(null);
+  const [deepLinkMessage, setDeepLinkMessage] = useState<string | null>(null);
   const [transportationOccurrence, setTransportationOccurrence] = useState<ScheduleOccurrence | null>(null);
   const [eventToEdit, setEventToEdit] = useState<Event | null>(null);
   const [occurrenceToEdit, setOccurrenceToEdit] = useState<ScheduleOccurrence | null>(null);
@@ -91,6 +106,7 @@ export function HomePage() {
   const [customEvents, setCustomEvents] = useState<Event[]>(() => localMigrationData.customEvents);
   const [customEventExceptions, setCustomEventExceptions] = useState<EventException[]>(() => localMigrationData.eventExceptions);
   const [transportationPlans, setTransportationPlans] = useState<TransportationPlan[]>(() => localMigrationData.transportationPlans);
+  const [eventReminders, setEventReminders] = useState<EventReminder[]>(() => localMigrationData.eventReminders);
   const [customChildren, setCustomChildren] = useState<Child[]>(() => localMigrationData.customChildren);
   const [sharedDataStatus, setSharedDataStatus] = useState<SharedDataStatus>('syncing');
   const [sharedDataInitialized, setSharedDataInitialized] = useState(false);
@@ -132,9 +148,20 @@ export function HomePage() {
     () => (selectedOccurrence === null ? null : getTransportationPlanForScheduleOccurrence(transportationPlans, selectedOccurrence)),
     [selectedOccurrence, transportationPlans],
   );
+  const selectedReminder = useMemo(
+    () => (selectedOccurrence === null ? null : getReminderForOccurrence(eventReminders, selectedOccurrence)),
+    [eventReminders, selectedOccurrence],
+  );
   const transportationPlansByOccurrence = useMemo(() => {
     return new Map(transportationPlans.map((plan) => [getTransportationKey(plan.eventId, plan.occurrenceDate), plan]));
   }, [transportationPlans]);
+  const remindersByOccurrence = useMemo(() => {
+    return new Map(
+      eventReminders
+        .filter((reminder) => reminder.enabled)
+        .map((reminder) => [getTransportationKey(reminder.eventId, reminder.occurrenceDate), reminder]),
+    );
+  }, [eventReminders]);
   const confirmationEvent = useMemo(() => {
     if (pendingConfirmation?.type !== 'deleteEvent' && pendingConfirmation?.type !== 'deleteSeries') {
       return null;
@@ -214,6 +241,7 @@ export function HomePage() {
       setCustomEvents(sharedState.customEvents);
       setCustomEventExceptions(sharedState.eventExceptions);
       setTransportationPlans(sharedState.transportationPlans);
+      setEventReminders(sharedState.eventReminders);
       setSharedDataInitialized(sharedState.initialized);
       setSharedDataStatus('shared');
       setSharedDataError(null);
@@ -231,6 +259,31 @@ export function HomePage() {
     void refreshSharedData(true);
   }, [refreshSharedData]);
 
+  useEffect(() => {
+    if (deepLinkProcessedRef.current || sharedDataStatus === 'syncing') {
+      return;
+    }
+
+    const deepLink = parseEventDeepLink(window.location.search);
+
+    if (deepLink === null) {
+      deepLinkProcessedRef.current = true;
+      return;
+    }
+
+    deepLinkProcessedRef.current = true;
+    const occurrence = resolveDeepLinkedOccurrence(allEvents, allEventExceptions, deepLink.eventId, deepLink.date);
+
+    if (occurrence === null) {
+      setDeepLinkMessage(t('requestedEventNotFound'));
+      clearEventDeepLinkParams();
+      return;
+    }
+
+    setWeekStartDate(getWeekStartForSpecificDate(deepLink.date));
+    setSelectedOccurrence(occurrence);
+    setDeepLinkMessage(null);
+  }, [allEventExceptions, allEvents, sharedDataStatus, t]);
   useEffect(() => {
     function handleWindowFocus() {
       void refreshSharedData();
@@ -399,6 +452,43 @@ export function HomePage() {
     setTransportationOccurrence(null);
   }
 
+  async function handleReminderChange(minutesBefore: ReminderMinutesBefore | null) {
+    if (selectedOccurrence === null) {
+      return;
+    }
+
+    if (minutesBefore === null) {
+      const didSave = await runSharedMutation(() =>
+        deleteSharedEventReminder(selectedOccurrence.eventId, selectedOccurrence.date),
+      );
+
+      if (!didSave) {
+        return;
+      }
+
+      setEventReminders(deleteSharedEventReminderInState(eventReminders, selectedOccurrence.eventId, selectedOccurrence.date));
+      return;
+    }
+
+    if (!isReminderMinutesBefore(minutesBefore)) {
+      return;
+    }
+
+    const nextReminder = createEventReminder(
+      selectedOccurrence.eventId,
+      selectedOccurrence.date,
+      minutesBefore,
+      selectedReminder,
+    );
+    const didSave = await runSharedMutation(() => upsertSharedEventReminder(nextReminder));
+
+    if (!didSave) {
+      return;
+    }
+
+    setEventReminders(upsertSharedEventReminderInState(eventReminders, nextReminder));
+  }
+
   async function handleConfirmAction() {
     if (pendingConfirmation === null) {
       return;
@@ -458,6 +548,16 @@ export function HomePage() {
     }
 
     setIsImportingLocalData(false);
+  }
+
+  function clearEventDeepLinkParams() {
+    const nextSearch = removeEventDeepLinkParams(window.location.search);
+    window.history.replaceState(null, '', window.location.pathname + nextSearch + window.location.hash);
+  }
+
+  function handleCloseSelectedOccurrence() {
+    setSelectedOccurrence(null);
+    clearEventDeepLinkParams();
   }
 
   function handlePreviousWeek() {
@@ -529,6 +629,11 @@ export function HomePage() {
           onCategoryFilterChange={setCategoryFilter}
           onShowOnlyWithTransportationChange={setShowOnlyWithTransportation}
         />
+        {deepLinkMessage !== null ? (
+          <section className="shared-data-message" data-status="issue">
+            <span>{deepLinkMessage}</span>
+          </section>
+        ) : null}
         {sharedDataError !== null ? (
           <section className="shared-data-message" data-status="issue">
             <span>{sharedDataError}</span>
@@ -567,6 +672,7 @@ export function HomePage() {
         data={familyActionCenterData}
         childrenById={childrenById}
         transportationPlansByOccurrence={transportationPlansByOccurrence}
+        remindersByOccurrence={remindersByOccurrence}
         language={language}
         isViewingCurrentWeek={weekStartDate === currentWeekStartDate}
         onShowCurrentWeek={() => setWeekStartDate(currentWeekStartDate)}
@@ -590,6 +696,7 @@ export function HomePage() {
               editableEventIds={editableEventIds}
               customRecurringEventIds={customRecurringEventIds}
               transportationPlansByOccurrence={transportationPlansByOccurrence}
+              remindersByOccurrence={remindersByOccurrence}
               language={language}
               onOccurrenceSelect={setSelectedOccurrence}
               isToday={isDateInWorkWeek(today, weekStartDate) && today === day.date}
@@ -632,13 +739,14 @@ export function HomePage() {
         occurrence={selectedOccurrence}
         child={selectedOccurrence === null ? null : childrenById.get(selectedOccurrence.childId) ?? null}
         transportationPlan={selectedTransportationPlan}
+        reminder={selectedReminder}
         canEditEvent={isSelectedCustomOneTimeEvent}
         canEditOccurrence={selectedEvent !== null && !isSelectedCustomOneTimeEvent}
         canEditSeries={isSelectedCustomRecurringEvent}
         canDeleteEvent={isSelectedCustomOneTimeEvent}
         canCancelOccurrence={selectedEvent?.recurrence !== null && selectedEvent !== null}
         canDeleteSeries={isSelectedCustomRecurringEvent}
-        onClose={() => setSelectedOccurrence(null)}
+        onClose={handleCloseSelectedOccurrence}
         onEdit={handleEditSelectedEvent}
         onDelete={handleDeleteSelectedEvent}
         onEditOccurrence={handleEditSelectedOccurrence}
@@ -646,6 +754,7 @@ export function HomePage() {
         onEditSeries={handleEditSelectedEvent}
         onDeleteSeries={handleDeleteSelectedSeries}
         onOpenTransportation={handleOpenTransportation}
+        onReminderChange={(minutesBefore) => void handleReminderChange(minutesBefore)}
       />
       <DeleteEventDialog
         event={confirmationEvent}

@@ -90,15 +90,17 @@ describe('shared family data client service', () => {
       parseSharedFamilyState({
         customChildren: [child],
         customEvents: [event],
-        eventExceptions: [exception],
-        transportationPlans: [transportationPlan],
-        initialized: true,
+      eventExceptions: [exception],
+      transportationPlans: [transportationPlan],
+      eventReminders: [],
+      initialized: true,
       }),
     ).toEqual({
       customChildren: [child],
       customEvents: [event],
       eventExceptions: [exception],
       transportationPlans: [transportationPlan],
+      eventReminders: [],
       initialized: true,
     });
   });
@@ -181,6 +183,7 @@ describe('shared family data client service', () => {
         customEvents: [],
         eventExceptions: [],
         transportationPlans: [],
+        eventReminders: [],
       }),
     ).toBe(true);
   });
@@ -194,6 +197,7 @@ describe('shared family data client service', () => {
         customEvents: [event],
         eventExceptions: [exception],
         transportationPlans: [transportationPlan],
+        eventReminders: [],
       },
       fetcher,
     );
@@ -215,13 +219,15 @@ describe('shared family data client service', () => {
           customEvents: [event],
           eventExceptions: [exception],
           transportationPlans: [transportationPlan],
+          eventReminders: [],
         },
         {
           customChildren: [child],
           customEvents: [event],
-          eventExceptions: [exception],
-          transportationPlans: [transportationPlan],
-          initialized: true,
+      eventExceptions: [exception],
+      transportationPlans: [transportationPlan],
+      eventReminders: [],
+      initialized: true,
         },
       ),
     ).toBe(true);

@@ -1,13 +1,16 @@
 import type { CSSProperties } from 'react';
 import { useUiPreferences, type Language, type TranslationKey } from '../i18n';
+import type { EventReminder } from '../models';
 import type { ChildTodaySummaryData } from '../services/familyActionCenter';
 import { formatActionCenterTime } from '../services/familyActionCenter';
+import { ReminderIndicator } from './ReminderIndicator';
 
 interface ChildTodaySummaryProps {
   summary: ChildTodaySummaryData;
+  reminder: EventReminder | null;
 }
 
-export function ChildTodaySummary({ summary }: ChildTodaySummaryProps) {
+export function ChildTodaySummary({ summary, reminder }: ChildTodaySummaryProps) {
   const { language, t } = useUiPreferences();
   const style = { '--child-color': summary.child.color } as CSSProperties;
 
@@ -21,7 +24,7 @@ export function ChildTodaySummary({ summary }: ChildTodaySummaryProps) {
       </div>
       {summary.nextOccurrence !== null ? (
         <p>
-          {t('nextActivity')} <time>{formatActionCenterTime(summary.nextOccurrence)}</time> {summary.nextOccurrence.title}
+          {t('nextActivity')} <time>{formatActionCenterTime(summary.nextOccurrence)}</time> {summary.nextOccurrence.title}{' '}<ReminderIndicator reminder={reminder} />
         </p>
       ) : summary.hasNonSchoolOccurrencesToday ? (
         <p>{t('noMoreToday')}</p>

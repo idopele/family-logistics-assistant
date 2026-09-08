@@ -488,10 +488,10 @@ summary:focus-visible {
 .schedule-section__content, .school-list { display: grid; }
 .schedule-section__content { gap: var(--space-2); }
 .school-list { gap: 0.15rem; }
-.school-row { display: grid; grid-template-columns: auto 2.55rem minmax(0, auto) minmax(0, 1fr); align-items: center; gap: 0.3rem; min-height: 1.72rem; border-radius: 0.5rem; background: rgb(255 255 255 / 52%); padding: 0.16rem 0.35rem; }
+.school-row { display: grid; grid-template-columns: auto 2.55rem auto minmax(0, auto) minmax(0, 1fr); align-items: center; gap: 0.3rem; min-height: 1.72rem; border-radius: 0.5rem; background: rgb(255 255 255 / 52%); padding: 0.16rem 0.35rem; }
 .school-row--button { width: 100%; border: 0; color: inherit; font: inherit; text-align: inherit; transition: background-color 140ms ease, transform 140ms ease; }
 .school-row--button:hover, .school-row--button:focus-visible { background: #fff; transform: translateY(-1px); }
-.school-row[data-show-child='false'] { grid-template-columns: auto 2.55rem minmax(0, 1fr); }
+.school-row[data-show-child='false'] { grid-template-columns: auto 2.55rem auto minmax(0, 1fr); }
 .school-row__indicator { width: 0.46rem; height: 0.46rem; border-radius: 999px; background: var(--child-color); box-shadow: 0 0 0 0.14rem color-mix(in srgb, var(--child-color) 16%, white); }
 .school-row__time { direction: ltr; color: var(--color-text-soft); font-size: 0.77rem; font-weight: 950; unicode-bidi: isolate; }
 .school-row__child { border-radius: 999px; background: color-mix(in srgb, var(--child-color) 12%, white); color: var(--color-text-soft); font-size: 0.68rem; font-weight: 950; padding: 0.06rem 0.34rem; white-space: nowrap; }
@@ -502,6 +502,7 @@ summary:focus-visible {
 .event-card--button { width: 100%; color: inherit; font: inherit; text-align: inherit; transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease, background-color 140ms ease; }
 .event-card--button:hover { transform: translateY(-1px); border-color: var(--color-border-strong); box-shadow: 0 0.75rem 1.65rem rgb(36 45 61 / 10%); }
 .event-card__topline { display: flex; flex-wrap: wrap; align-items: center; gap: 0.28rem; }
+.reminder-indicator { display: inline-flex; align-items: center; justify-content: center; width: 1.35rem; height: 1.35rem; border: 1px solid #f0c36a; border-radius: 999px; background: #fff7df; color: #7c4a08; font-size: 0.78rem; line-height: 1; vertical-align: middle; }
 .event-card__time { direction: ltr; color: var(--color-text); font-size: 0.94rem; font-weight: 950; unicode-bidi: isolate; }
 .event-card__next-day, .event-card__recurring, .event-card__badge, .event-card__edit-cue { width: fit-content; border-radius: 999px; font-size: 0.72rem; font-weight: 900; line-height: 1.35; padding: 0.12rem 0.46rem; white-space: nowrap; }
 .event-card__next-day, .event-card__recurring { background: var(--color-primary-soft); color: var(--color-primary); }
@@ -877,6 +878,8 @@ summary:focus-visible {
 .event-details-list dd { margin: 0; color: var(--color-text); font-weight: 850; }
 .event-details-list__time { direction: ltr; unicode-bidi: isolate; }
 .event-details-list__next-day { margin-inline-start: 0.5rem; border-radius: 999px; background: var(--color-primary-soft); color: var(--color-primary); font-size: 0.75rem; font-weight: 950; padding: 0.12rem 0.45rem; }
+.event-details-reminder { display: grid; gap: 0.35rem; margin-bottom: var(--space-4); color: var(--color-text-soft); font-size: 0.86rem; font-weight: 950; }
+.event-details-reminder select { width: 100%; min-height: 2.55rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg-soft); color: var(--color-text); padding: 0.48rem 0.68rem; }
 .event-details-transportation { display: grid; gap: var(--space-2); margin-bottom: var(--space-4); }
 .event-details-transportation h3, .event-details-transportation h4, .event-details-transportation p, .delete-event-dialog p, .transportation-save-conflict h3, .transportation-save-conflict p { margin: 0; }
 .event-details-transportation h3 { color: #73410c; font-size: 0.96rem; font-weight: 950; }

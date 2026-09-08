@@ -20,7 +20,7 @@ Do not add a fake password screen inside the React app for this MVP. Temporary p
 - Runtime secrets required: yes, for temporary HTTP Basic Authentication
 - D1 binding required: yes, `FAMILY_DB`
 - Production output directory: `dist`
-- Client-side deep links: not currently used
+- Client-side deep links: supported with `?eventId=...&date=YYYY-MM-DD` for resolved schedule occurrences
 
 Because the app currently renders from the root URL and does not use React Router or other deep-link routing, no Cloudflare Pages SPA fallback file is required for this step. Browser refresh on the main application URL should serve `index.html` normally.
 
@@ -73,6 +73,7 @@ Required D1 binding name:
 Database migration file:
 
 - `migrations/0001_shared_family_data.sql`
+- `migrations/0002_event_reminders.sql`
 
 The migration creates:
 
@@ -80,6 +81,7 @@ The migration creates:
 - `custom_events`
 - `event_exceptions`
 - `transportation_plans`
+- `event_reminders`
 - `app_meta`
 
 The existing Basic Auth middleware protects both the frontend and `/api/*` requests. Do not create unauthenticated API routes.
@@ -88,13 +90,15 @@ Manual Cloudflare setup:
 
 1. Create a Cloudflare D1 database for the family dashboard.
 2. Apply `migrations/0001_shared_family_data.sql` to that D1 database.
-3. In the Cloudflare Pages project, add a D1 binding named `FAMILY_DB`.
-4. Confirm `FAMILY_AUTH_USERNAME` and `FAMILY_AUTH_PASSWORD` are still configured as encrypted Secrets.
-5. Redeploy the Pages project.
-6. Open the deployed site in an Incognito/private browser and verify Basic Auth appears before the app or any `/api/*` request is served.
-7. Confirm custom children, custom events, occurrence changes, and transportation plans sync between two browsers/devices after refresh or focus.
+3. Apply `migrations/0002_event_reminders.sql` to the same D1 database.
+4. In the Cloudflare Pages project, add a D1 binding named `FAMILY_DB`.
+5. Confirm `FAMILY_AUTH_USERNAME` and `FAMILY_AUTH_PASSWORD` are still configured as encrypted Secrets.
+6. Redeploy the Pages project.
+7. Open the deployed site in an Incognito/private browser and verify Basic Auth appears before the app or any `/api/*` request is served.
+8. Confirm custom children, custom events, occurrence changes, transportation plans, and event reminders sync between two browsers/devices after refresh or focus.
 
 Do not document database IDs, API tokens, passwords, or secret values in the repository.
+Reminder migration can be applied from the Cloudflare dashboard: open the D1 database, go to Console, paste the SQL from `migrations/0002_event_reminders.sql`, and run it against the existing family database. Do not paste or document credentials while applying migrations.
 
 ## Manual Deployment Steps
 
@@ -135,7 +139,8 @@ Before sharing the private URL:
 - Cloudflare Pages serves the `dist` output.
 - `FAMILY_AUTH_USERNAME` and `FAMILY_AUTH_PASSWORD` are configured as encrypted Cloudflare Pages Secrets.
 - `FAMILY_DB` is bound to the Cloudflare Pages project.
-- `migrations/0001_shared_family_data.sql` has been applied to the D1 database.
+- `migrations/0001_shared_family_data.sql`
+- `migrations/0002_event_reminders.sql` has been applied to the D1 database.
 - The Pages Function password gate is verified in an Incognito/private browser.
 - The app works at desktop, tablet, and phone widths.
 - Hebrew mode uses RTL.

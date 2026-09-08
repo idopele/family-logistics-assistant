@@ -1,4 +1,4 @@
-import type { Child, Event, EventException, TransportationLeg, TransportationPlan } from '../models';
+import type { Child, Event, EventException, EventReminder, TransportationLeg, TransportationPlan } from '../models';
 import { loadCustomChildren } from './localChildStorage';
 import { loadCustomEventExceptions } from './localEventExceptionStorage';
 import { loadCustomEvents } from './localEventStorage';
@@ -9,6 +9,7 @@ export type SharedFamilyState = {
   customEvents: Event[];
   eventExceptions: EventException[];
   transportationPlans: TransportationPlan[];
+  eventReminders: EventReminder[];
   initialized: boolean;
 };
 
@@ -45,6 +46,7 @@ export function loadLocalFamilyDataForMigration(): LocalFamilyData {
     customEvents: loadCustomEvents(),
     eventExceptions: loadCustomEventExceptions(),
     transportationPlans: loadTransportationPlans(),
+    eventReminders: [],
   };
 }
 
@@ -53,7 +55,8 @@ export function hasLocalFamilyData(data: LocalFamilyData): boolean {
     data.customChildren.length > 0 ||
     data.customEvents.length > 0 ||
     data.eventExceptions.length > 0 ||
-    data.transportationPlans.length > 0
+    data.transportationPlans.length > 0 ||
+    data.eventReminders.length > 0
   );
 }
 
@@ -97,6 +100,14 @@ export async function deleteSharedTransportationPlan(eventId: string, occurrence
   await sendMutation({ action: 'deleteTransportationPlan', payload: { eventId, occurrenceDate } }, fetcher);
 }
 
+export async function upsertSharedEventReminder(reminder: EventReminder, fetcher: Fetcher = fetch): Promise<void> {
+  await sendMutation({ action: 'upsertEventReminder', payload: reminder }, fetcher);
+}
+
+export async function deleteSharedEventReminder(eventId: string, occurrenceDate: string, fetcher: Fetcher = fetch): Promise<void> {
+  await sendMutation({ action: 'deleteEventReminder', payload: { eventId, occurrenceDate } }, fetcher);
+}
+
 export async function importLocalFamilyData(data: LocalFamilyData, fetcher: Fetcher = fetch): Promise<void> {
   await sendMutation({ action: 'importLocalData', payload: data }, fetcher);
 }
@@ -120,6 +131,26 @@ export function upsertSharedTransportationPlanInState(
   return plans.map((plan, index) => (index === existingIndex ? nextPlan : plan));
 }
 
+export function upsertSharedEventReminderInState(reminders: EventReminder[], nextReminder: EventReminder): EventReminder[] {
+  const existingIndex = reminders.findIndex(
+    (reminder) => reminder.eventId === nextReminder.eventId && reminder.occurrenceDate === nextReminder.occurrenceDate,
+  );
+
+  if (existingIndex === -1) {
+    return [...reminders, nextReminder];
+  }
+
+  return reminders.map((reminder, index) => (index === existingIndex ? nextReminder : reminder));
+}
+
+export function deleteSharedEventReminderInState(
+  reminders: EventReminder[],
+  eventId: string,
+  occurrenceDate: string,
+): EventReminder[] {
+  return reminders.filter((reminder) => reminder.eventId !== eventId || reminder.occurrenceDate !== occurrenceDate);
+}
+
 export function isLocalMigrationConfirmed(localData: LocalFamilyData, sharedState: SharedFamilyState): boolean {
   return (
     localData.customChildren.every((child) => sharedState.customChildren.some((sharedChild) => sharedChild.id === child.id)) &&
@@ -132,6 +163,11 @@ export function isLocalMigrationConfirmed(localData: LocalFamilyData, sharedStat
     localData.transportationPlans.every((plan) =>
       sharedState.transportationPlans.some(
         (sharedPlan) => sharedPlan.eventId === plan.eventId && sharedPlan.occurrenceDate === plan.occurrenceDate,
+      ),
+    ) &&
+    (localData.eventReminders ?? []).every((reminder) =>
+      (sharedState.eventReminders ?? []).some(
+        (sharedReminder) => sharedReminder.eventId === reminder.eventId && sharedReminder.occurrenceDate === reminder.occurrenceDate,
       ),
     )
   );
@@ -149,6 +185,7 @@ export function parseSharedFamilyState(value: unknown): SharedFamilyState | null
     !Array.isArray(state.customEvents) ||
     !Array.isArray(state.eventExceptions) ||
     !Array.isArray(state.transportationPlans) ||
+    (state.eventReminders !== undefined && !Array.isArray(state.eventReminders)) ||
     typeof state.initialized !== 'boolean'
   ) {
     return null;
@@ -158,7 +195,8 @@ export function parseSharedFamilyState(value: unknown): SharedFamilyState | null
     !state.customChildren.every(isChild) ||
     !state.customEvents.every(isEvent) ||
     !state.eventExceptions.every(isEventException) ||
-    !state.transportationPlans.every(isTransportationPlan)
+    !state.transportationPlans.every(isTransportationPlan) ||
+    (state.eventReminders !== undefined && !state.eventReminders.every(isEventReminder))
   ) {
     return null;
   }
@@ -168,6 +206,7 @@ export function parseSharedFamilyState(value: unknown): SharedFamilyState | null
     customEvents: state.customEvents,
     eventExceptions: state.eventExceptions,
     transportationPlans: state.transportationPlans,
+    eventReminders: state.eventReminders ?? [],
     initialized: state.initialized,
   };
 }
@@ -322,6 +361,28 @@ function isTransportationPlan(value: unknown): value is TransportationPlan {
   );
 }
 
+function isEventReminder(value: unknown): value is EventReminder {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const reminder = value as Partial<EventReminder>;
+
+  return (
+    typeof reminder.id === 'string' &&
+    reminder.id.trim() !== '' &&
+    typeof reminder.eventId === 'string' &&
+    reminder.eventId.trim() !== '' &&
+    typeof reminder.occurrenceDate === 'string' &&
+    reminder.occurrenceDate.trim() !== '' &&
+    typeof reminder.reminderMinutesBefore === 'number' &&
+    isAllowedReminderMinutes(reminder.reminderMinutesBefore) &&
+    typeof reminder.enabled === 'boolean' &&
+    typeof reminder.createdAt === 'string' &&
+    typeof reminder.updatedAt === 'string'
+  );
+}
+
 function isTransportationLeg(value: unknown): value is TransportationLeg {
   if (typeof value !== 'object' || value === null) {
     return false;
@@ -341,4 +402,8 @@ function isTransportationLeg(value: unknown): value is TransportationLeg {
     (typeof leg.additionalPassengers === 'string' || leg.additionalPassengers === null) &&
     (typeof leg.notes === 'string' || leg.notes === null)
   );
+}
+
+function isAllowedReminderMinutes(value: number): value is EventReminder['reminderMinutesBefore'] {
+  return value === 15 || value === 30 || value === 60 || value === 120 || value === 1440;
 }

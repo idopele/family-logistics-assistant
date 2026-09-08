@@ -1,10 +1,11 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { Language } from '../i18n';
 import { useUiPreferences } from '../i18n';
-import type { Child, ScheduleOccurrence, TransportationPlan } from '../models';
+import type { Child, EventReminder, ScheduleOccurrence, TransportationPlan } from '../models';
 import type { ChildFilter } from './ScheduleFilters';
 import { formatDisplayDate } from '../utils/week';
 import { EventCard } from './EventCard';
+import { ReminderIndicator } from './ReminderIndicator';
 
 interface DayScheduleProps {
   label: string;
@@ -15,6 +16,7 @@ interface DayScheduleProps {
   editableEventIds: Set<string>;
   customRecurringEventIds: Set<string>;
   transportationPlansByOccurrence: Map<string, TransportationPlan>;
+  remindersByOccurrence?: Map<string, EventReminder>;
   language?: Language;
   onOccurrenceSelect: (occurrence: ScheduleOccurrence) => void;
   isToday: boolean;
@@ -29,6 +31,7 @@ export function DaySchedule({
   editableEventIds,
   customRecurringEventIds,
   transportationPlansByOccurrence,
+  remindersByOccurrence = new Map(),
   language = 'he',
   onOccurrenceSelect,
   isToday,
@@ -60,6 +63,7 @@ export function DaySchedule({
                         occurrence={occurrence}
                         child={child}
                         showChildLabel={childFilter === 'all'}
+                        reminder={remindersByOccurrence.get(getOccurrenceKey(occurrence)) ?? null}
                         onSelect={onOccurrenceSelect}
                       />
                     ) : null;
@@ -81,6 +85,7 @@ export function DaySchedule({
                       isEditable={editableEventIds.has(occurrence.eventId)}
                       isRecurring={customRecurringEventIds.has(occurrence.eventId)}
                       transportationPlan={transportationPlansByOccurrence.get(getOccurrenceKey(occurrence)) ?? null}
+                      reminder={remindersByOccurrence.get(getOccurrenceKey(occurrence)) ?? null}
                       language={language}
                       onSelect={onOccurrenceSelect}
                     />
@@ -121,10 +126,12 @@ function SchoolLessonRow({
   child,
   showChildLabel,
   onSelect,
+  reminder,
 }: {
   occurrence: ScheduleOccurrence;
   child: Child;
   showChildLabel: boolean;
+  reminder: EventReminder | null;
   onSelect: (occurrence: ScheduleOccurrence) => void;
 }) {
   const style = { '--child-color': child.color } as CSSProperties;
@@ -141,6 +148,7 @@ function SchoolLessonRow({
       <time className="school-row__time" dateTime={`${occurrence.date}T${occurrence.startTime}`}>
         {occurrence.startTime}
       </time>
+      <ReminderIndicator reminder={reminder} />
       {showChildLabel ? <span className="school-row__child">{child.name}</span> : null}
       <span className="school-row__title">{occurrence.title}</span>
     </button>

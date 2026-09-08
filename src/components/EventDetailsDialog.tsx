@@ -1,12 +1,20 @@
 import { getEventCategoryLabel } from '../data/eventCategories';
 import { useUiPreferences } from '../i18n';
-import type { Child, Event, ScheduleOccurrence, TransportationLeg, TransportationPlan } from '../models';
+import type { Child, Event, EventReminder, ScheduleOccurrence, TransportationLeg, TransportationPlan } from '../models';
+import {
+  formatReminderLabel,
+  isReminderMinutesBefore,
+  reminderMinuteOptions,
+  type ReminderMinutesBefore,
+} from '../services/eventReminders';
+import { ReminderIndicator } from './ReminderIndicator';
 
 interface EventDetailsDialogProps {
   event: Event | null;
   occurrence: ScheduleOccurrence | null;
   child: Child | null;
   transportationPlan: TransportationPlan | null;
+  reminder: EventReminder | null;
   canEditEvent: boolean;
   canEditOccurrence: boolean;
   canEditSeries: boolean;
@@ -21,6 +29,7 @@ interface EventDetailsDialogProps {
   onEditSeries: () => void;
   onDeleteSeries: () => void;
   onOpenTransportation: () => void;
+  onReminderChange: (minutesBefore: ReminderMinutesBefore | null) => void;
 }
 
 export function EventDetailsDialog({
@@ -28,6 +37,7 @@ export function EventDetailsDialog({
   occurrence,
   child,
   transportationPlan,
+  reminder,
   canEditEvent,
   canEditOccurrence,
   canEditSeries,
@@ -42,6 +52,7 @@ export function EventDetailsDialog({
   onEditSeries,
   onDeleteSeries,
   onOpenTransportation,
+  onReminderChange,
 }: EventDetailsDialogProps) {
   const { language, t } = useUiPreferences();
 
@@ -58,7 +69,10 @@ export function EventDetailsDialog({
     <div className="dialog-backdrop" role="presentation">
       <section className="event-details-dialog" role="dialog" aria-modal="true" aria-labelledby="event-details-title">
         <header className="event-details-dialog__header">
-          <h2 id="event-details-title">{details.title}</h2>
+          <h2 id="event-details-title">
+            {details.title}
+            <ReminderIndicator reminder={reminder} />
+          </h2>
           <button className="dialog-close-button" type="button" onClick={onClose}>
             {t('close')}
           </button>
@@ -105,6 +119,36 @@ export function EventDetailsDialog({
         </dl>
 
         {transportationPlan !== null ? <TransportationDetails plan={transportationPlan} /> : null}
+
+        {occurrence !== null ? (
+          <label className="event-details-reminder">
+            <span>{t('reminder')}</span>
+            <select
+              value={reminder?.enabled ? String(reminder.reminderMinutesBefore) : ''}
+              onChange={(event) => {
+                const value = event.target.value;
+
+                if (value === '') {
+                  onReminderChange(null);
+                  return;
+                }
+
+                const minutesBefore = Number(value);
+
+                if (isReminderMinutesBefore(minutesBefore)) {
+                  onReminderChange(minutesBefore);
+                }
+              }}
+            >
+              <option value="">{t('noReminder')}</option>
+              {reminderMinuteOptions.map((minutesBefore) => (
+                <option key={minutesBefore} value={minutesBefore}>
+                  {formatReminderLabel(minutesBefore, language)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
 
         <div className="event-details-dialog__actions">
           {canEditOccurrence || canEditSeries || canCancelOccurrence || canDeleteSeries ? (

@@ -1,4 +1,13 @@
-import type { Child, Event, EventCategory, EventException, RecurrenceRule, TransportationLeg, TransportationPlan } from '../../src/models';
+import type {
+  Child,
+  Event,
+  EventCategory,
+  EventException,
+  EventReminder,
+  RecurrenceRule,
+  TransportationLeg,
+  TransportationPlan,
+} from '../../src/models';
 
 type D1Value = string | number | null;
 
@@ -30,6 +39,7 @@ export type SharedFamilyState = {
   customEvents: Event[];
   eventExceptions: EventException[];
   transportationPlans: TransportationPlan[];
+  eventReminders: EventReminder[];
   initialized: boolean;
 };
 
@@ -42,10 +52,13 @@ type MutationRequest =
   | { action: 'deleteEventException'; payload: { eventId: string; date: string } }
   | { action: 'upsertTransportationPlan'; payload: TransportationPlan }
   | { action: 'deleteTransportationPlan'; payload: { eventId: string; occurrenceDate: string } }
+  | { action: 'upsertEventReminder'; payload: EventReminder }
+  | { action: 'deleteEventReminder'; payload: { eventId: string; occurrenceDate: string } }
   | { action: 'importLocalData'; payload: Omit<SharedFamilyState, 'initialized'> };
 
 const initializedMetaKey = 'shared_data_initialized';
 const maxRequestBytes = 200_000;
+const allowedReminderMinutes = [15, 30, 60, 120, 1440] as const;
 
 const eventCategories: EventCategory[] = [
   'school',
@@ -78,11 +91,12 @@ export async function handleGetSharedState(context: PagesContext): Promise<Respo
   }
 
   try {
-    const [children, events, exceptions, transportationPlans, initialized] = await Promise.all([
+    const [children, events, exceptions, transportationPlans, eventReminders, initialized] = await Promise.all([
       readPayloadRows<Child>(db, 'SELECT payload FROM custom_children ORDER BY id', isChild),
       readPayloadRows<Event>(db, 'SELECT payload FROM custom_events ORDER BY id', isEvent),
       readPayloadRows<EventException>(db, 'SELECT payload FROM event_exceptions ORDER BY event_id, occurrence_date', isEventException),
       readPayloadRows<TransportationPlan>(db, 'SELECT payload FROM transportation_plans ORDER BY occurrence_date, event_id', isTransportationPlan),
+      readEventReminderRows(db),
       readInitializedFlag(db),
     ]);
 
@@ -91,6 +105,7 @@ export async function handleGetSharedState(context: PagesContext): Promise<Respo
       customEvents: events,
       eventExceptions: exceptions,
       transportationPlans,
+      eventReminders,
       initialized,
     });
   } catch {
@@ -146,6 +161,7 @@ export function parseSharedFamilyState(value: unknown): SharedFamilyState | null
     !Array.isArray(state.customEvents) ||
     !Array.isArray(state.eventExceptions) ||
     !Array.isArray(state.transportationPlans) ||
+    (state.eventReminders !== undefined && !Array.isArray(state.eventReminders)) ||
     typeof state.initialized !== 'boolean'
   ) {
     return null;
@@ -155,7 +171,8 @@ export function parseSharedFamilyState(value: unknown): SharedFamilyState | null
     !state.customChildren.every(isChild) ||
     !state.customEvents.every(isEvent) ||
     !state.eventExceptions.every(isEventException) ||
-    !state.transportationPlans.every(isTransportationPlan)
+    !state.transportationPlans.every(isTransportationPlan) ||
+    (state.eventReminders !== undefined && !state.eventReminders.every(isEventReminder))
   ) {
     return null;
   }
@@ -165,6 +182,7 @@ export function parseSharedFamilyState(value: unknown): SharedFamilyState | null
     customEvents: state.customEvents,
     eventExceptions: state.eventExceptions,
     transportationPlans: state.transportationPlans,
+    eventReminders: state.eventReminders ?? [],
     initialized: state.initialized,
   };
 }
@@ -264,6 +282,28 @@ export function isTransportationPlan(value: unknown): value is TransportationPla
   );
 }
 
+export function isEventReminder(value: unknown): value is EventReminder {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const reminder = value as Partial<EventReminder>;
+
+  return (
+    typeof reminder.id === 'string' &&
+    reminder.id.trim() !== '' &&
+    typeof reminder.eventId === 'string' &&
+    reminder.eventId.trim() !== '' &&
+    typeof reminder.occurrenceDate === 'string' &&
+    reminder.occurrenceDate.trim() !== '' &&
+    typeof reminder.reminderMinutesBefore === 'number' &&
+    isAllowedReminderMinutes(reminder.reminderMinutesBefore) &&
+    typeof reminder.enabled === 'boolean' &&
+    typeof reminder.createdAt === 'string' &&
+    typeof reminder.updatedAt === 'string'
+  );
+}
+
 export function mergeUniqueById<T extends { id: string }>(baseItems: T[], sharedItems: T[]): T[] {
   const itemsById = new Map(baseItems.map((item) => [item.id, item]));
 
@@ -285,6 +325,18 @@ export function upsertByEventDate<T extends { eventId: string; date: string }>(i
 }
 
 export function upsertTransportationByEventDate(items: TransportationPlan[], nextItem: TransportationPlan): TransportationPlan[] {
+  const existingIndex = items.findIndex(
+    (item) => item.eventId === nextItem.eventId && item.occurrenceDate === nextItem.occurrenceDate,
+  );
+
+  if (existingIndex === -1) {
+    return [...items, nextItem];
+  }
+
+  return items.map((item, index) => (index === existingIndex ? nextItem : item));
+}
+
+export function upsertReminderByEventDate(items: EventReminder[], nextItem: EventReminder): EventReminder[] {
   const existingIndex = items.findIndex(
     (item) => item.eventId === nextItem.eventId && item.occurrenceDate === nextItem.occurrenceDate,
   );
@@ -320,6 +372,10 @@ function parseMutationRequest(value: unknown): MutationRequest | null {
       return isTransportationPlan(request.payload) ? { action: request.action, payload: request.payload } : null;
     case 'deleteTransportationPlan':
       return isTransportationDatePayload(request.payload) ? { action: request.action, payload: request.payload } : null;
+    case 'upsertEventReminder':
+      return isEventReminder(request.payload) ? { action: request.action, payload: request.payload } : null;
+    case 'deleteEventReminder':
+      return isTransportationDatePayload(request.payload) ? { action: request.action, payload: request.payload } : null;
     case 'importLocalData':
       return isImportPayload(request.payload) ? { action: request.action, payload: request.payload } : null;
     default:
@@ -349,6 +405,7 @@ async function applyMutation(db: D1Database, mutation: MutationRequest): Promise
         db.prepare('DELETE FROM custom_events WHERE id = ?').bind(mutation.payload.id),
         db.prepare('DELETE FROM event_exceptions WHERE event_id = ?').bind(mutation.payload.id),
         db.prepare('DELETE FROM transportation_plans WHERE event_id = ?').bind(mutation.payload.id),
+        db.prepare('DELETE FROM event_reminders WHERE event_id = ?').bind(mutation.payload.id),
       ]);
       break;
     case 'upsertEventException':
@@ -378,6 +435,26 @@ async function applyMutation(db: D1Database, mutation: MutationRequest): Promise
     case 'deleteTransportationPlan':
       await db
         .prepare('DELETE FROM transportation_plans WHERE event_id = ? AND occurrence_date = ?')
+        .bind(mutation.payload.eventId, mutation.payload.occurrenceDate)
+        .run();
+      break;
+    case 'upsertEventReminder':
+      await db
+        .prepare('INSERT INTO event_reminders (id, event_id, occurrence_date, minutes_before, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(event_id, occurrence_date) DO UPDATE SET id = excluded.id, minutes_before = excluded.minutes_before, enabled = excluded.enabled, updated_at = excluded.updated_at')
+        .bind(
+          mutation.payload.id,
+          mutation.payload.eventId,
+          mutation.payload.occurrenceDate,
+          mutation.payload.reminderMinutesBefore,
+          mutation.payload.enabled ? 1 : 0,
+          mutation.payload.createdAt,
+          mutation.payload.updatedAt,
+        )
+        .run();
+      break;
+    case 'deleteEventReminder':
+      await db
+        .prepare('DELETE FROM event_reminders WHERE event_id = ? AND occurrence_date = ?')
         .bind(mutation.payload.eventId, mutation.payload.occurrenceDate)
         .run();
       break;
@@ -411,6 +488,19 @@ async function importLocalData(db: D1Database, payload: Omit<SharedFamilyState, 
         .prepare('INSERT INTO transportation_plans (id, event_id, occurrence_date, payload, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(event_id, occurrence_date) DO UPDATE SET id = excluded.id, payload = excluded.payload, updated_at = excluded.updated_at')
         .bind(plan.id, plan.eventId, plan.occurrenceDate, JSON.stringify(plan), plan.updatedAt),
     ),
+    ...(payload.eventReminders ?? []).map((reminder) =>
+      db
+        .prepare('INSERT INTO event_reminders (id, event_id, occurrence_date, minutes_before, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(event_id, occurrence_date) DO UPDATE SET id = excluded.id, minutes_before = excluded.minutes_before, enabled = excluded.enabled, updated_at = excluded.updated_at')
+        .bind(
+          reminder.id,
+          reminder.eventId,
+          reminder.occurrenceDate,
+          reminder.reminderMinutesBefore,
+          reminder.enabled ? 1 : 0,
+          reminder.createdAt,
+          reminder.updatedAt,
+        ),
+    ),
   ];
 
   if (statements.length > 0) {
@@ -430,6 +520,38 @@ async function readPayloadRows<T>(db: D1Database, query: string, isValid: (value
       return [];
     }
   });
+}
+
+async function readEventReminderRows(db: D1Database): Promise<EventReminder[]> {
+  try {
+    const { results = [] } = await db
+      .prepare(
+        'SELECT id, event_id, occurrence_date, minutes_before, enabled, created_at, updated_at FROM event_reminders ORDER BY occurrence_date, event_id',
+      )
+      .all<{
+        id: string;
+        event_id: string;
+        occurrence_date: string;
+        minutes_before: number;
+        enabled: number;
+        created_at: string;
+        updated_at: string;
+      }>();
+
+    return results
+      .map((row) => ({
+        id: row.id,
+        eventId: row.event_id,
+        occurrenceDate: row.occurrence_date,
+        reminderMinutesBefore: row.minutes_before,
+        enabled: row.enabled === 1,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }))
+      .filter(isEventReminder);
+  } catch {
+    return [];
+  }
 }
 
 async function readInitializedFlag(db: D1Database): Promise<boolean> {
@@ -471,10 +593,12 @@ function isImportPayload(value: unknown): value is Omit<SharedFamilyState, 'init
     Array.isArray(payload.customEvents) &&
     Array.isArray(payload.eventExceptions) &&
     Array.isArray(payload.transportationPlans) &&
+    (payload.eventReminders === undefined || Array.isArray(payload.eventReminders)) &&
     payload.customChildren.every(isChild) &&
     payload.customEvents.every(isEvent) &&
     payload.eventExceptions.every(isEventException) &&
-    payload.transportationPlans.every(isTransportationPlan)
+    payload.transportationPlans.every(isTransportationPlan) &&
+    (payload.eventReminders === undefined || payload.eventReminders.every(isEventReminder))
   );
 }
 
@@ -569,4 +693,8 @@ function isTransportationLeg(value: unknown): value is TransportationLeg {
     (typeof leg.additionalPassengers === 'string' || leg.additionalPassengers === null) &&
     (typeof leg.notes === 'string' || leg.notes === null)
   );
+}
+
+function isAllowedReminderMinutes(value: number): value is EventReminder['reminderMinutesBefore'] {
+  return allowedReminderMinutes.includes(value as EventReminder['reminderMinutesBefore']);
 }

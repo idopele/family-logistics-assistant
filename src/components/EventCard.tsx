@@ -3,6 +3,8 @@ import { getEventCategoryLabel } from '../data/eventCategories';
 import type { Language } from '../i18n';
 import { useUiPreferences } from '../i18n';
 import type { Child, ScheduleOccurrence, TransportationPlan } from '../models';
+import type { EventReminder } from '../models';
+import { ReminderIndicator } from './ReminderIndicator';
 
 interface EventCardProps {
   occurrence: ScheduleOccurrence;
@@ -10,6 +12,7 @@ interface EventCardProps {
   isEditable?: boolean;
   isRecurring?: boolean;
   transportationPlan?: TransportationPlan | null;
+  reminder?: EventReminder | null;
   language: Language;
   onSelect?: (occurrence: ScheduleOccurrence) => void;
 }
@@ -20,6 +23,7 @@ export function EventCard({
   isEditable = false,
   isRecurring = false,
   transportationPlan = null,
+  reminder = null,
   language,
   onSelect,
 }: EventCardProps) {
@@ -31,6 +35,7 @@ export function EventCard({
       <div className="event-card__topline">
         <span className="event-card__time">{timeLabel}</span>
         {occurrence.endsNextDay ? <span className="event-card__next-day">{t('nextDay')}</span> : null}
+        <ReminderIndicator reminder={reminder} />
         {isRecurring ? <span className="event-card__recurring">{t('recurringBadge')}</span> : null}
         <span className="event-card__badge">{getEventCategoryLabel(occurrence, language)}</span>
       </div>

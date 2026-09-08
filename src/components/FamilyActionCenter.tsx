@@ -1,15 +1,17 @@
-import type { Child, ScheduleOccurrence, TransportationPlan } from '../models';
+import type { Child, EventReminder, ScheduleOccurrence, TransportationPlan } from '../models';
 import type { Language } from '../i18n';
 import { useUiPreferences } from '../i18n';
 import type { FamilyActionCenterData, TodayTransportationLeg } from '../services/familyActionCenter';
 import { formatActionCenterCategoryForLanguage, formatActionCenterTime } from '../services/familyActionCenter';
 import { ChildTodaySummary } from './ChildTodaySummary';
+import { ReminderIndicator } from './ReminderIndicator';
 import { TransportationConflicts } from './TransportationConflicts';
 
 interface FamilyActionCenterProps {
   data: FamilyActionCenterData;
   childrenById: Map<string, Child>;
   transportationPlansByOccurrence: Map<string, TransportationPlan>;
+  remindersByOccurrence: Map<string, EventReminder>;
   language: Language;
   isViewingCurrentWeek: boolean;
   onShowCurrentWeek: () => void;
@@ -20,6 +22,7 @@ export function FamilyActionCenter({
   data,
   childrenById,
   transportationPlansByOccurrence,
+  remindersByOccurrence,
   language,
   isViewingCurrentWeek,
   onShowCurrentWeek,
@@ -62,7 +65,11 @@ export function FamilyActionCenter({
 
       <div className="family-action-center__children">
         {data.childSummaries.map((summary) => (
-          <ChildTodaySummary key={summary.child.id} summary={summary} />
+          <ChildTodaySummary
+            key={summary.child.id}
+            summary={summary}
+            reminder={summary.nextOccurrence === null ? null : remindersByOccurrence.get(getOccurrenceKey(summary.nextOccurrence)) ?? null}
+          />
         ))}
       </div>
 
@@ -79,7 +86,10 @@ export function FamilyActionCenter({
               >
                 <time>{formatActionCenterTime(occurrence)}</time>
                 <em>{childrenById.get(occurrence.childId)?.name ?? occurrence.childId}</em>
-                <span>{occurrence.title}</span>
+                <span>
+                  {occurrence.title}{' '}
+                  <ReminderIndicator reminder={remindersByOccurrence.get(getOccurrenceKey(occurrence)) ?? null} />
+                </span>
                 <small>{formatActionCenterCategoryForLanguage(occurrence, language)}</small>
                 {occurrence.location !== null ? <small>{occurrence.location}</small> : null}
                 {occurrence.isException ? <b>{t('change')}</b> : null}
