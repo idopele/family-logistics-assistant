@@ -392,6 +392,78 @@ summary:focus-visible {
   border-color: var(--color-border-strong);
   background: var(--color-surface);
 }
+.push-notifications {
+  display: grid;
+  gap: var(--space-2);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-3);
+}
+.push-notifications__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.push-notifications h3,
+.push-notifications p {
+  margin: 0;
+}
+.push-notifications h3 {
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-weight: 950;
+}
+.push-notifications p {
+  color: var(--color-text-soft);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.push-notifications__header span {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg-soft);
+  color: var(--color-text-soft);
+  font-size: 0.72rem;
+  font-weight: 950;
+  padding: 0.14rem 0.45rem;
+  white-space: nowrap;
+}
+.push-notifications__header span[data-status='enabled'] {
+  border-color: #9bd4c9;
+  background: #e5f7f3;
+  color: #0f766e;
+}
+.push-notifications__header span[data-status='permission-denied'],
+.push-notifications__header span[data-status='unsupported'] {
+  border-color: #f0b4a3;
+  background: #fff1ed;
+  color: #b43d1e;
+}
+.push-notifications__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.push-notifications__actions button {
+  min-height: 2rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg-soft);
+  color: var(--color-text-soft);
+  font-size: 0.75rem;
+  font-weight: 900;
+  padding: 0 0.65rem;
+  transition: transform 140ms ease, background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.push-notifications__actions button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+.push-notifications__message {
+  color: var(--color-primary);
+}
 .add-event-button, .add-child-button { padding: 0 1rem; }
 .add-event-button { border-color: var(--color-primary); background: var(--color-primary); color: #fff; box-shadow: 0 0.55rem 1.2rem rgb(36 67 63 / 22%); }
 .add-event-button:hover { transform: translateY(-1px); background: var(--color-primary-hover); }
@@ -745,6 +817,26 @@ summary:focus-visible {
   border-color: var(--color-border-strong);
   background: var(--color-bg-soft);
   color: var(--color-text);
+}
+
+:root[data-theme='dark'] .push-notifications__header span,
+:root[data-theme='dark'] .push-notifications__actions button {
+  border-color: var(--color-border);
+  background: rgb(255 255 255 / 8%);
+  color: var(--color-text-soft);
+}
+
+:root[data-theme='dark'] .push-notifications__header span[data-status='enabled'] {
+  border-color: #2dd4bf;
+  background: #123f3b;
+  color: #b8fff4;
+}
+
+:root[data-theme='dark'] .push-notifications__header span[data-status='permission-denied'],
+:root[data-theme='dark'] .push-notifications__header span[data-status='unsupported'] {
+  border-color: #f18668;
+  background: #522316;
+  color: #ffe1d7;
 }
 
 :root[data-theme='dark'] .add-event-button {

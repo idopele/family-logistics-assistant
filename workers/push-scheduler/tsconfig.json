@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "WebWorker"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "src",
+    "../../src/models",
+    "../../src/data/children.ts",
+    "../../src/data/events.ts",
+    "../../src/data/eventExceptions.ts",
+    "../../src/utils/base64Url.ts",
+    "../../src/utils/dateTime.ts",
+    "../../src/services/notificationScheduling.ts",
+    "../../src/services/notificationTime.ts",
+    "../../src/services/scheduleEngine.ts",
+    "../../src/services/webPush.ts"
+  ]
+}

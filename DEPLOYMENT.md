@@ -19,6 +19,7 @@ Do not add a fake password screen inside the React app for this MVP. Temporary p
 - Database required: Cloudflare D1
 - Runtime secrets required: yes, for temporary HTTP Basic Authentication
 - D1 binding required: yes, `FAMILY_DB`
+- Push infrastructure required: Cloudflare Worker with Cron Trigger and Web Push VAPID secrets
 - Production output directory: `dist`
 - Client-side deep links: supported with `?eventId=...&date=YYYY-MM-DD` for resolved schedule occurrences
 
@@ -74,6 +75,7 @@ Database migration file:
 
 - `migrations/0001_shared_family_data.sql`
 - `migrations/0002_event_reminders.sql`
+- `migrations/0003_push_notifications.sql`
 
 The migration creates:
 
@@ -82,6 +84,8 @@ The migration creates:
 - `event_exceptions`
 - `transportation_plans`
 - `event_reminders`
+- `push_subscriptions`
+- `notification_deliveries`
 - `app_meta`
 
 The existing Basic Auth middleware protects both the frontend and `/api/*` requests. Do not create unauthenticated API routes.
@@ -91,14 +95,103 @@ Manual Cloudflare setup:
 1. Create a Cloudflare D1 database for the family dashboard.
 2. Apply `migrations/0001_shared_family_data.sql` to that D1 database.
 3. Apply `migrations/0002_event_reminders.sql` to the same D1 database.
-4. In the Cloudflare Pages project, add a D1 binding named `FAMILY_DB`.
-5. Confirm `FAMILY_AUTH_USERNAME` and `FAMILY_AUTH_PASSWORD` are still configured as encrypted Secrets.
-6. Redeploy the Pages project.
-7. Open the deployed site in an Incognito/private browser and verify Basic Auth appears before the app or any `/api/*` request is served.
-8. Confirm custom children, custom events, occurrence changes, transportation plans, and event reminders sync between two browsers/devices after refresh or focus.
+4. Apply `migrations/0003_push_notifications.sql` to the same D1 database.
+5. In the Cloudflare Pages project, add a D1 binding named `FAMILY_DB`.
+6. Confirm `FAMILY_AUTH_USERNAME` and `FAMILY_AUTH_PASSWORD` are still configured as encrypted Secrets.
+7. Redeploy the Pages project.
+8. Open the deployed site in an Incognito/private browser and verify Basic Auth appears before the app or any `/api/*` request is served.
+9. Confirm custom children, custom events, occurrence changes, transportation plans, and event reminders sync between two browsers/devices after refresh or focus.
 
 Do not document database IDs, API tokens, passwords, or secret values in the repository.
 Reminder migration can be applied from the Cloudflare dashboard: open the D1 database, go to Console, paste the SQL from `migrations/0002_event_reminders.sql`, and run it against the existing family database. Do not paste or document credentials while applying migrations.
+
+Push notification migration can also be applied from the Cloudflare dashboard: open the D1 database, go to Console, paste the SQL from `migrations/0003_push_notifications.sql`, and run it against `family-logistics-db`.
+
+## Web Push Notifications
+
+Web Push delivery is server-side. The browser registers a Service Worker and stores a PushSubscription in D1 through protected same-origin `/api/push`; reminder timing is handled by the dedicated Cloudflare Worker in `workers/push-scheduler`.
+
+Architecture:
+
+- The frontend never schedules notifications with timers or polling.
+- The Service Worker file is `public/push-service-worker.js`.
+- `/api/push` returns the VAPID public key, registers or disables the current browser subscription, and sends a server-originated test push.
+- Push subscriptions are infrastructure data and are not included in normal `/api/shared` schedule bootstrap payloads.
+- The scheduler Worker runs every minute via Cron, reads D1 schedule/reminder rows, imports the shared pure Schedule Engine, resolves final occurrences including `EventException`, converts local family times to UTC, and sends due reminders.
+- Notification clicks open the existing deep-link format: `?eventId=<eventId>&date=YYYY-MM-DD`.
+
+Required Pages/Worker non-secret variables:
+
+- `VAPID_PUBLIC_KEY`
+- `VAPID_SUBJECT`, for example a `mailto:` contact
+- `FAMILY_TIME_ZONE=Asia/Jerusalem`
+- Optional: `NOTIFICATION_LANGUAGE=he` or `en`
+
+Required Worker secret:
+
+- `VAPID_PRIVATE_KEY`
+
+Do not put `VAPID_PRIVATE_KEY` in Vite variables, React source, localStorage, D1, docs, or Git.
+
+Generate a VAPID key pair locally:
+
+```bash
+npm run vapid:generate
+```
+
+Copy the public key to Cloudflare as a non-secret variable. Copy the private key directly into a Cloudflare Worker Secret. Do not save generated private keys into the repository.
+
+Worker deployment:
+
+1. Apply `migrations/0003_push_notifications.sql` to `family-logistics-db`.
+2. In `workers/push-scheduler/wrangler.toml`, replace `REPLACE_WITH_PRODUCTION_D1_DATABASE_ID` with the existing production D1 database id.
+3. Configure the Worker D1 binding:
+   - Binding name: `FAMILY_DB`
+   - Database name: `family-logistics-db`
+4. Configure Worker variables:
+   - `VAPID_PUBLIC_KEY`
+   - `VAPID_SUBJECT`
+   - `FAMILY_TIME_ZONE=Asia/Jerusalem`
+   - Optional `NOTIFICATION_LANGUAGE`
+5. Configure Worker secret:
+   - `VAPID_PRIVATE_KEY`
+6. Deploy the Worker.
+7. Confirm the Cron Trigger is `* * * * *`.
+8. Deploy the Pages frontend changes.
+
+Retry behavior:
+
+- A successful notification creates/updates a `notification_deliveries` row as `sent`.
+- The uniqueness rule on `reminder_id + subscription_id + scheduled_for_utc` prevents normal duplicate same-device deliveries.
+- Temporary push failures are retried up to 3 attempts.
+- Permanent `404` or `410` push responses disable the subscription.
+- A sent delivery is never retried.
+
+Troubleshooting:
+
+- If the UI shows unsupported, the current browser lacks Service Worker, PushManager, or Notification support.
+- If the UI shows permission denied, change the browser/site notification permission manually.
+- If test push fails, verify Basic Auth, `/api/push`, VAPID variables/secrets, the D1 migration, and the service worker registration.
+- If scheduled reminders do not arrive, verify the Worker D1 binding, Cron Trigger, Worker logs, `FAMILY_TIME_ZONE`, VAPID secrets, and `notification_deliveries` rows.
+
+Manual push validation plan:
+
+1. Apply `migrations/0003_push_notifications.sql` in Cloudflare Dashboard -> D1 -> `family-logistics-db` -> Console.
+2. Configure the Worker D1 binding `FAMILY_DB` to `family-logistics-db`.
+3. Configure VAPID public variable, private secret, subject, and `FAMILY_TIME_ZONE=Asia/Jerusalem`.
+4. Deploy the push scheduler Worker.
+5. Verify Cron is `* * * * *`.
+6. Deploy the Pages changes.
+7. Open the private app, authenticate, and click App Info -> Enable notifications.
+8. Click Send test notification.
+9. Create an event 5-10 minutes in the future.
+10. Configure a reminder that becomes due soon.
+11. Close the Family Logistics Assistant tab.
+12. Verify the notification still arrives.
+13. Click the notification.
+14. Verify the exact occurrence opens through `?eventId=<eventId>&date=<occurrenceDate>`.
+15. Repeat on a second subscribed device.
+16. Verify later Cron runs do not duplicate the same notification on the same device.
 
 ## Manual Deployment Steps
 
@@ -136,11 +229,13 @@ Before sharing the private URL:
 
 - `npm run test` passes.
 - `npm run build` passes.
+- `npm run worker:build` passes.
 - Cloudflare Pages serves the `dist` output.
 - `FAMILY_AUTH_USERNAME` and `FAMILY_AUTH_PASSWORD` are configured as encrypted Cloudflare Pages Secrets.
 - `FAMILY_DB` is bound to the Cloudflare Pages project.
 - `migrations/0001_shared_family_data.sql`
 - `migrations/0002_event_reminders.sql` has been applied to the D1 database.
+- `migrations/0003_push_notifications.sql` has been applied to the D1 database.
 - The Pages Function password gate is verified in an Incognito/private browser.
 - The app works at desktop, tablet, and phone widths.
 - Hebrew mode uses RTL.
@@ -153,13 +248,12 @@ Before sharing the private URL:
 
 This deployment does not include:
 
-- Backend
-- Database
 - In-app authentication
 - Cross-device synchronization
 - External calendar APIs
 - WhatsApp integration
 - AI features
 - Maps
-- Notifications
+- SMS/email/WhatsApp notification delivery
+- Per-user notification routing
 - Analytics or tracking

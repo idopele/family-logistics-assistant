@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useUiPreferences } from '../i18n';
 import { appBuildInfo, formatBuildDate, type AppBuildInfo } from '../services/appInfo';
+import { PushNotificationsControl } from './PushNotificationsControl';
 
 interface AppInfoButtonProps {
   buildInfo?: AppBuildInfo;
@@ -33,6 +34,7 @@ export function AppInfoButton({ buildInfo = appBuildInfo, defaultOpen = false }:
             <AppInfoRow label={t('buildDate')} value={formatBuildDate(buildInfo.buildTime, language)} />
             {buildInfo.branch !== null ? <AppInfoRow label={t('branch')} value={buildInfo.branch} /> : null}
           </dl>
+          <PushNotificationsControl />
           <button className="app-info__close" type="button" onClick={() => setIsOpen(false)}>
             {t('close')}
           </button>

@@ -1,0 +1,11 @@
+name = "family-logistics-push-scheduler"
+main = "src/index.ts"
+compatibility_date = "2026-09-09"
+
+[triggers]
+crons = ["* * * * *"]
+
+[[d1_databases]]
+binding = "FAMILY_DB"
+database_name = "family-logistics-db"
+database_id = "REPLACE_WITH_PRODUCTION_D1_DATABASE_ID"
