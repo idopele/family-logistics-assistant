@@ -1,6 +1,6 @@
 import { weekDayLabelsByLanguage, type Language } from '../i18n';
 import { getDayOfWeek, isValidDate } from './dateTime';
-import { getSundayOfWeek, type WeekDay } from './week';
+import { getSundayOfWeek, isDateInWorkWeek, type WeekDay } from './week';
 
 export type WeekdayFilter = 'all' | 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -10,6 +10,18 @@ export function getWeekStartForSpecificDate(date: string): string {
   }
 
   return getSundayOfWeek(date);
+}
+
+export function getDefaultWeekdayFilter(today: string, weekStartDate: string): WeekdayFilter {
+  if (!isValidDate(today) || !isValidDate(weekStartDate)) {
+    throw new Error('Invalid schedule view date');
+  }
+
+  return isDateInWorkWeek(today, weekStartDate) ? (getDayOfWeek(today) as WeekdayFilter) : 'all';
+}
+
+export function getWeekdayFilterAfterClearingSpecificDate(today: string, weekStartDate: string): WeekdayFilter {
+  return getDefaultWeekdayFilter(today, weekStartDate);
 }
 
 export function getVisibleWeekDays(

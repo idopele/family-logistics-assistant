@@ -1,9 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it, vi } from 'vitest';
 import { translations, weekDayLabelsByLanguage } from '../i18n';
 import { buildFamilyActionCenterData } from '../services/familyActionCenter';
 import type { Child, Event } from '../models';
+import { HomePage } from '../pages/HomePage';
 import { getWorkWeekDays } from './week';
-import { getVisibleWeekDays, getWeekStartForSpecificDate } from './scheduleViewFilters';
+import {
+  getDefaultWeekdayFilter,
+  getVisibleWeekDays,
+  getWeekdayFilterAfterClearingSpecificDate,
+  getWeekStartForSpecificDate,
+  type WeekdayFilter,
+} from './scheduleViewFilters';
 
 const children: Child[] = [{ id: 'daniel', name: 'Daniel', color: '#2563EB', isActive: true }];
 
@@ -29,6 +38,28 @@ const event: Event = {
 };
 
 describe('schedule view date filters', () => {
+  it('initial current week shows the current weekday only', () => {
+    const storage = { getItem: vi.fn(() => null), setItem: vi.fn(), removeItem: vi.fn(), clear: vi.fn(), key: vi.fn(), length: 0 };
+    vi.stubGlobal('localStorage', storage);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 8, 9, 12, 0, 0));
+
+    const markup = renderToStaticMarkup(createElement(HomePage));
+
+    expect(markup.match(/class="day-schedule"/g)).toHaveLength(1);
+    expect(markup).toContain('dateTime="2026-09-09"');
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('defaults the current week to the local current weekday', () => {
+    expect(getDefaultWeekdayFilter('2026-09-09', '2026-09-06')).toBe(3);
+  });
+
+  it('uses all days when the viewed week is not the current week', () => {
+    expect(getDefaultWeekdayFilter('2026-09-09', '2026-09-13')).toBe('all');
+  });
+
   it('weekday filter shows the correct selected week day', () => {
     const weekDays = getWorkWeekDays('2026-09-06', 'en');
 
@@ -38,6 +69,7 @@ describe('schedule view date filters', () => {
   it('preserves Sunday-Saturday weekday numbering', () => {
     expect(weekDayLabelsByLanguage.en[0]).toBe('Sunday');
     expect(weekDayLabelsByLanguage.en[6]).toBe('Saturday');
+    expect(getDefaultWeekdayFilter('2026-09-06', '2026-09-06')).toBe(0);
   });
 
   it('specific date navigates to the containing Sunday-Saturday week', () => {
@@ -56,16 +88,19 @@ describe('schedule view date filters', () => {
     expect(getVisibleWeekDays(weekDays, 0, '2026-09-17', 'en')).toEqual([{ date: '2026-09-17', label: 'Thursday' }]);
   });
 
-  it('clearing date returns normal week behavior', () => {
+  it('clearing date on the current week returns to the current weekday', () => {
     const weekDays = getWorkWeekDays('2026-09-06', 'en');
+    const nextFilter = getWeekdayFilterAfterClearingSpecificDate('2026-09-09', '2026-09-06');
 
-    expect(getVisibleWeekDays(weekDays, 'all', '', 'en')).toHaveLength(7);
+    expect(nextFilter).toBe(3);
+    expect(getVisibleWeekDays(weekDays, nextFilter, '', 'en')).toEqual([{ date: '2026-09-09', label: 'Wednesday' }]);
   });
 
-  it('manual week navigation clears specific-date mode by returning to the selected week view', () => {
-    const previousWeekDays = getWorkWeekDays('2026-09-06', 'en');
+  it('polling or rerender leaves a manual all-days filter intact', () => {
+    const weekDays = getWorkWeekDays('2026-09-06', 'en');
+    const manuallySelectedFilter: WeekdayFilter = 'all';
 
-    expect(getVisibleWeekDays(previousWeekDays, 'all', '', 'en').map((day) => day.date)).toEqual([
+    expect(getVisibleWeekDays(weekDays, manuallySelectedFilter, '', 'en').map((day) => day.date)).toEqual([
       '2026-09-06',
       '2026-09-07',
       '2026-09-08',
@@ -73,6 +108,26 @@ describe('schedule view date filters', () => {
       '2026-09-10',
       '2026-09-11',
       '2026-09-12',
+    ]);
+  });
+
+  it('This week returns to the current weekday', () => {
+    const currentWeekDays = getWorkWeekDays('2026-09-06', 'en');
+    const thisWeekFilter = getDefaultWeekdayFilter('2026-09-09', '2026-09-06');
+
+    expect(getVisibleWeekDays(currentWeekDays, thisWeekFilter, '', 'en')).toEqual([
+      { date: '2026-09-09', label: 'Wednesday' },
+    ]);
+  });
+
+  it('next and previous week preserve the selected weekday', () => {
+    const selectedWeekday: WeekdayFilter = 3;
+
+    expect(getVisibleWeekDays(getWorkWeekDays('2026-08-30', 'en'), selectedWeekday, '', 'en')).toEqual([
+      { date: '2026-09-02', label: 'Wednesday' },
+    ]);
+    expect(getVisibleWeekDays(getWorkWeekDays('2026-09-13', 'en'), selectedWeekday, '', 'en')).toEqual([
+      { date: '2026-09-16', label: 'Wednesday' },
     ]);
   });
 

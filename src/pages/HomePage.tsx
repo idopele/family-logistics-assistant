@@ -61,7 +61,9 @@ import { buildFamilyActionCenterData } from '../services/familyActionCenter';
 import { useUiPreferences } from '../i18n';
 import { addDays, isValidDate } from '../utils/dateTime';
 import {
+  getDefaultWeekdayFilter,
   getVisibleWeekDays,
+  getWeekdayFilterAfterClearingSpecificDate,
   getWeekStartForSpecificDate,
   type WeekdayFilter,
 } from '../utils/scheduleViewFilters';
@@ -93,7 +95,9 @@ export function HomePage() {
   const [weekStartDate, setWeekStartDate] = useState(() => getSundayOfWeek(today));
   const [childFilter, setChildFilter] = useState<ChildFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
-  const [weekdayFilter, setWeekdayFilter] = useState<WeekdayFilter>('all');
+  const [weekdayFilter, setWeekdayFilter] = useState<WeekdayFilter>(() =>
+    getDefaultWeekdayFilter(today, getSundayOfWeek(today)),
+  );
   const [specificDateFilter, setSpecificDateFilter] = useState('');
   const [showOnlyWithTransportation, setShowOnlyWithTransportation] = useState(false);
   const [isAddEventOpen, setIsAddEventOpen] = useState(false);
@@ -289,6 +293,7 @@ export function HomePage() {
     }
 
     setWeekStartDate(getWeekStartForSpecificDate(deepLink.date));
+    setSpecificDateFilter(deepLink.date);
     setSelectedOccurrence(occurrence);
     setDeepLinkMessage(null);
   }, [allEventExceptions, allEvents, sharedDataStatus, t]);
@@ -596,6 +601,7 @@ export function HomePage() {
   function handleCurrentWeek() {
     setSpecificDateFilter('');
     setWeekStartDate(getSundayOfWeek(today));
+    setWeekdayFilter(getDefaultWeekdayFilter(today, getSundayOfWeek(today)));
   }
 
   function handleNextWeek() {
@@ -609,6 +615,11 @@ export function HomePage() {
     if (date !== '' && isValidDate(date)) {
       setWeekStartDate(getWeekStartForSpecificDate(date));
     }
+  }
+
+  function handleClearSpecificDateFilter() {
+    setSpecificDateFilter('');
+    setWeekdayFilter(getWeekdayFilterAfterClearingSpecificDate(today, weekStartDate));
   }
 
   return (
@@ -630,7 +641,7 @@ export function HomePage() {
               specificDateFilter={specificDateFilter}
               onWeekdayFilterChange={setWeekdayFilter}
               onSpecificDateFilterChange={handleSpecificDateFilterChange}
-              onClearSpecificDateFilter={() => setSpecificDateFilter('')}
+              onClearSpecificDateFilter={handleClearSpecificDateFilter}
             />
           </div>
           <div className="dashboard-header-tools">
@@ -704,7 +715,7 @@ export function HomePage() {
         remindersByOccurrence={remindersByOccurrence}
         language={language}
         isViewingCurrentWeek={weekStartDate === currentWeekStartDate}
-        onShowCurrentWeek={() => setWeekStartDate(currentWeekStartDate)}
+        onShowCurrentWeek={handleCurrentWeek}
         onOccurrenceSelect={setSelectedOccurrence}
       />
 
