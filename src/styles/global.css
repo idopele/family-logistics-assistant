@@ -254,7 +254,7 @@ summary:focus-visible {
 .schedule-date-filters__clear { color: #9a3412; }
 
 .dashboard-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: start; }
-.dashboard-header-tools { display: grid; gap: var(--space-2); justify-items: start; }
+.dashboard-header-tools { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; justify-content: start; }
 .shared-data-status {
   width: fit-content;
   border: 1px solid var(--color-border);
@@ -305,6 +305,92 @@ summary:focus-visible {
   background: var(--color-surface);
   color: var(--color-text);
   box-shadow: 0 0.25rem 0.65rem rgb(36 45 61 / 9%);
+}
+.app-info { position: relative; }
+.app-info__button {
+  display: inline-grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 62%);
+  color: var(--color-text-soft);
+  font-size: 1rem;
+  font-weight: 950;
+  line-height: 1;
+  transition: transform 140ms ease, background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.app-info__button:hover,
+.app-info__button[aria-expanded='true'] {
+  transform: translateY(-1px);
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+.app-info__panel {
+  position: absolute;
+  inset-block-start: calc(100% + 0.45rem);
+  inset-inline-end: 0;
+  z-index: 20;
+  display: grid;
+  gap: var(--space-3);
+  width: min(20rem, calc(100vw - 2rem));
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-pop);
+  padding: var(--space-3);
+}
+.app-info__panel h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1rem;
+  font-weight: 950;
+  line-height: 1.2;
+}
+.app-info__list {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+}
+.app-info__list div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+  border-top: 1px solid var(--color-border);
+  padding-top: 0.45rem;
+}
+.app-info__list dt {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+.app-info__list dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text);
+  font-size: 0.84rem;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+  text-align: end;
+}
+.app-info__close {
+  justify-self: end;
+  min-height: 2rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg-soft);
+  color: var(--color-text-soft);
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 0 0.7rem;
+}
+.app-info__close:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface);
 }
 .add-event-button, .add-child-button { padding: 0 1rem; }
 .add-event-button { border-color: var(--color-primary); background: var(--color-primary); color: #fff; box-shadow: 0 0.55rem 1.2rem rgb(36 67 63 / 22%); }
@@ -637,6 +723,30 @@ summary:focus-visible {
   color: #ffffff;
 }
 
+:root[data-theme='dark'] .app-info__button {
+  border-color: var(--color-border);
+  background: rgb(255 255 255 / 8%);
+  color: var(--color-text-soft);
+}
+
+:root[data-theme='dark'] .app-info__button:hover,
+:root[data-theme='dark'] .app-info__button[aria-expanded='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+:root[data-theme='dark'] .app-info__panel {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-raised);
+}
+
+:root[data-theme='dark'] .app-info__close {
+  border-color: var(--color-border-strong);
+  background: var(--color-bg-soft);
+  color: var(--color-text);
+}
+
 :root[data-theme='dark'] .add-event-button {
   color: #08201d;
 }
@@ -938,6 +1048,7 @@ summary:focus-visible {
   .dashboard-top__main, .family-action-center, .day-schedule { border-radius: var(--radius-lg); }
   .dashboard-actions, .schedule-filters, .schedule-filters__group, .schedule-filters__buttons, .week-navigation__buttons, .schedule-date-filters, .schedule-date-filters__weekdays, .schedule-date-filters__buttons, .schedule-date-filters__date { width: 100%; }
   .dashboard-actions > button, .schedule-filters__button, .week-navigation__button, .schedule-date-filters__button { flex: 1 1 auto; }
+  .app-info__panel { position: fixed; inset-block-start: auto; inset-block-end: var(--space-3); inset-inline: var(--space-3); width: auto; }
   .schedule-date-filters__date input { flex: 1 1 10rem; }
   .schedule-filters__group {
   display: flex;

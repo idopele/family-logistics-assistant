@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AddChildDialog } from '../components/AddChildDialog';
 import { AddEventDialog, type AddEventSaveResult } from '../components/AddEventDialog';
+import { AppInfoButton } from '../components/AppInfoButton';
 import { DaySchedule } from '../components/DaySchedule';
 import { DeleteEventDialog } from '../components/DeleteEventDialog';
 import { EventDetailsDialog } from '../components/EventDetailsDialog';
@@ -634,6 +635,7 @@ export function HomePage() {
           </div>
           <div className="dashboard-header-tools">
             <UiPreferenceControls />
+            <AppInfoButton />
             <SharedDataStatusIndicator status={sharedDataStatus} />
             <div className="dashboard-actions">
               <button className="add-event-button" type="button" onClick={() => setIsAddEventOpen(true)}>
