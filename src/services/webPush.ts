@@ -1,5 +1,5 @@
+import { sendNotification, type PushSubscription as WebPushNeoSubscription } from 'web-push-neo';
 import type { PushSubscriptionRecord } from '../models';
-import { base64UrlToUint8Array, uint8ArrayToBase64Url } from '../utils/base64Url';
 import type { PushNotificationPayload } from './notificationScheduling';
 
 export interface WebPushConfig {
@@ -15,143 +15,77 @@ export interface WebPushSendResult {
   error?: string;
 }
 
-const textEncoder = new TextEncoder();
+type WebPushNeoError = {
+  statusCode?: unknown;
+  message?: unknown;
+};
 
 export async function sendWebPushNotification(
   subscription: Pick<PushSubscriptionRecord, 'endpoint' | 'p256dh' | 'auth'>,
   payload: PushNotificationPayload,
   config: WebPushConfig,
-  fetcher: typeof fetch = fetch,
 ): Promise<WebPushSendResult> {
   try {
-    const endpointOrigin = new URL(subscription.endpoint).origin;
-    const jwt = await createVapidJwt(endpointOrigin, config);
-    const encryptedPayload = await encryptPushPayload(JSON.stringify(payload), subscription);
-    const response = await fetcher(subscription.endpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `vapid t=${jwt}, k=${config.vapidPublicKey}`,
-        'Content-Encoding': 'aes128gcm',
-        'Content-Type': 'application/octet-stream',
-        TTL: '2419200',
-        Urgency: 'normal',
+    const result = await sendNotification(mapSubscriptionToWebPushNeo(subscription), stringifyPushPayload(payload), {
+      vapidDetails: {
+        subject: config.vapidSubject,
+        publicKey: config.vapidPublicKey,
+        privateKey: config.vapidPrivateKey,
       },
-      body: encryptedPayload,
+      urgency: 'normal',
+      TTL: 2419200,
     });
+    const status = typeof result.statusCode === 'number' ? result.statusCode : 201;
 
     return {
-      ok: response.ok,
-      status: response.status,
-      permanentFailure: response.status === 404 || response.status === 410,
-      error: response.ok ? undefined : `Push service returned ${response.status}`,
+      ok: status >= 200 && status < 300,
+      status,
+      permanentFailure: status === 404 || status === 410,
+      error: status >= 200 && status < 300 ? undefined : `Push service returned ${status}`,
     };
   } catch (error) {
+    const status = getProviderStatus(error);
+
     return {
       ok: false,
-      status: 0,
-      permanentFailure: false,
-      error: error instanceof Error ? error.message : 'Unknown Web Push error',
+      status,
+      permanentFailure: status === 404 || status === 410,
+      error: normalizeWebPushError(error),
     };
   }
 }
 
-export async function createVapidJwt(audience: string, config: WebPushConfig, nowSeconds = Math.floor(Date.now() / 1000)): Promise<string> {
-  const publicKeyBytes = base64UrlToUint8Array(config.vapidPublicKey);
-
-  if (publicKeyBytes.length !== 65 || publicKeyBytes[0] !== 0x04) {
-    throw new Error('VAPID public key must be an uncompressed P-256 key.');
-  }
-
-  const signingKey = await crypto.subtle.importKey(
-    'jwk',
-    {
-      kty: 'EC',
-      crv: 'P-256',
-      x: uint8ArrayToBase64Url(publicKeyBytes.slice(1, 33)),
-      y: uint8ArrayToBase64Url(publicKeyBytes.slice(33, 65)),
-      d: config.vapidPrivateKey,
-      ext: false,
+export function mapSubscriptionToWebPushNeo(
+  subscription: Pick<PushSubscriptionRecord, 'endpoint' | 'p256dh' | 'auth'>,
+): WebPushNeoSubscription {
+  return {
+    endpoint: subscription.endpoint,
+    keys: {
+      p256dh: subscription.p256dh,
+      auth: subscription.auth,
     },
-    { name: 'ECDSA', namedCurve: 'P-256' },
-    false,
-    ['sign'],
-  );
-  const header = uint8ArrayToBase64Url(textEncoder.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
-  const body = uint8ArrayToBase64Url(
-    textEncoder.encode(
-      JSON.stringify({
-        aud: audience,
-        exp: nowSeconds + 12 * 60 * 60,
-        sub: config.vapidSubject,
-      }),
-    ),
-  );
-  const signature = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, signingKey, textEncoder.encode(`${header}.${body}`));
-
-  return `${header}.${body}.${uint8ArrayToBase64Url(new Uint8Array(signature))}`;
+  };
 }
 
-export async function encryptPushPayload(
-  payload: string,
-  subscription: Pick<PushSubscriptionRecord, 'p256dh' | 'auth'>,
-): Promise<Uint8Array> {
-  const receiverPublicKeyBytes = base64UrlToUint8Array(subscription.p256dh);
-  const authSecret = base64UrlToUint8Array(subscription.auth);
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const serverKeyPair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
-  const serverPublicKeyBytes = new Uint8Array(await crypto.subtle.exportKey('raw', serverKeyPair.publicKey));
-  const receiverPublicKey = await crypto.subtle.importKey('raw', receiverPublicKeyBytes, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
-  const sharedSecret = new Uint8Array(
-    await crypto.subtle.deriveBits({ name: 'ECDH', public: receiverPublicKey }, serverKeyPair.privateKey, 256),
-  );
-  const pseudoRandomKey = await hmacSha256(authSecret, sharedSecret);
-  const info = concatUint8Arrays(
-    textEncoder.encode('WebPush: info'),
-    new Uint8Array([0]),
-    receiverPublicKeyBytes,
-    serverPublicKeyBytes,
-  );
-  const inputKeyMaterial = await hmacSha256(pseudoRandomKey, info);
-  const contentEncryptionKey = await hkdfExpand(inputKeyMaterial, salt, 'Content-Encoding: aes128gcm', 16);
-  const nonce = await hkdfExpand(inputKeyMaterial, salt, 'Content-Encoding: nonce', 12);
-  const aesKey = await crypto.subtle.importKey('raw', contentEncryptionKey, 'AES-GCM', false, ['encrypt']);
-  const plaintext = concatUint8Arrays(textEncoder.encode(payload), new Uint8Array([0x02]));
-  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce, tagLength: 128 }, aesKey, plaintext));
-
-  return concatUint8Arrays(
-    salt,
-    uint32ToBytes(4096),
-    new Uint8Array([serverPublicKeyBytes.length]),
-    serverPublicKeyBytes,
-    ciphertext,
-  );
+export function stringifyPushPayload(payload: PushNotificationPayload): string {
+  return JSON.stringify(payload);
 }
 
-async function hkdfExpand(secret: Uint8Array, salt: Uint8Array, info: string, length: number): Promise<Uint8Array> {
-  const pseudoRandomKey = await hmacSha256(salt, secret);
-  const output = await hmacSha256(pseudoRandomKey, concatUint8Arrays(textEncoder.encode(info), new Uint8Array([0, 1])));
+function getProviderStatus(error: unknown): number {
+  const statusCode = (error as WebPushNeoError | null)?.statusCode;
 
-  return output.slice(0, length);
+  return typeof statusCode === 'number' ? statusCode : 0;
 }
 
-async function hmacSha256(keyBytes: Uint8Array, value: Uint8Array): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+function normalizeWebPushError(error: unknown): string {
+  const webPushError = error as WebPushNeoError | null;
+  const status = getProviderStatus(error);
 
-  return new Uint8Array(await crypto.subtle.sign('HMAC', key, value));
-}
-
-function concatUint8Arrays(...arrays: Uint8Array[]): Uint8Array {
-  const result = new Uint8Array(arrays.reduce((totalLength, array) => totalLength + array.length, 0));
-  let offset = 0;
-
-  for (const array of arrays) {
-    result.set(array, offset);
-    offset += array.length;
+  if (status > 0) {
+    return `Push service returned ${status}`;
   }
 
-  return result;
-}
-
-function uint32ToBytes(value: number): Uint8Array {
-  return new Uint8Array([(value >>> 24) & 255, (value >>> 16) & 255, (value >>> 8) & 255, value & 255]);
+  return typeof webPushError?.message === 'string' && webPushError.message.trim() !== ''
+    ? webPushError.message.slice(0, 160)
+    : 'Web Push request failed';
 }

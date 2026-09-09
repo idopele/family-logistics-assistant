@@ -5,7 +5,14 @@ compatibility_date = "2026-09-09"
 [triggers]
 crons = ["* * * * *"]
 
+[vars]
+VAPID_PUBLIC_KEY = "BArrwb0OjVy7idVxRfo1K71wFY1UOvqPFxa0GXYHaic8kgiEOEvxc7yQ8zGsGSFyiysOL9HVeIaASP4JosSTq3w"
+VAPID_SUBJECT = "mailto:ido19lev@gmail.com"
+FAMILY_TIME_ZONE = "Asia/Jerusalem"
+NOTIFICATION_LANGUAGE = "he"
+
 [[d1_databases]]
 binding = "FAMILY_DB"
 database_name = "family-logistics-db"
-database_id = "REPLACE_WITH_PRODUCTION_D1_DATABASE_ID"
+database_id = "edcbc300-7803-4140-abc4-77a6553b9ea5"
+

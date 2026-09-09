@@ -8,10 +8,10 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 async function showPushNotification(event) {
-  const payload = parsePushPayload(event.data);
+  const payload = await parsePushPayload(event.data);
   const title = payload.title || 'Family Logistics Assistant';
   const options = {
-    body: payload.body || '',
+    body: payload.body || 'New family notification',
     tag: payload.tag || undefined,
     data: {
       url: payload.url || '/',
@@ -21,7 +21,7 @@ async function showPushNotification(event) {
   await self.registration.showNotification(title, options);
 }
 
-function parsePushPayload(data) {
+async function parsePushPayload(data) {
   if (!data) {
     return {};
   }
@@ -29,7 +29,13 @@ function parsePushPayload(data) {
   try {
     return data.json();
   } catch {
-    return {};
+    try {
+      const text = await data.text();
+
+      return text.trim() === '' ? {} : { body: text };
+    } catch {
+      return {};
+    }
   }
 }
 

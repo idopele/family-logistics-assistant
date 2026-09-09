@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildTestNotificationPayload, parsePushMutationRequest } from './push';
+import { buildTestNotificationPayload, buildTestPushResponseBody, parsePushMutationRequest } from './push';
 
 const subscription = {
   endpoint: 'https://push.example.test/subscription',
@@ -55,7 +55,20 @@ describe('push API request parsing', () => {
       title: 'Family Logistics Assistant',
       body: 'Notifications are working on this device.',
       url: '/',
+      tag: 'family-logistics-test',
     });
     expect(buildTestNotificationPayload('he').body).toBe('ההתראות פועלות במכשיר זה.');
+  });
+
+  it('returns safe provider diagnostics for test push success and failure', () => {
+    expect(buildTestPushResponseBody({ ok: true, status: 201, permanentFailure: false })).toEqual({
+      ok: true,
+      providerStatus: 201,
+    });
+    expect(buildTestPushResponseBody({ ok: false, status: 410, permanentFailure: true, error: 'Push service returned 410' })).toEqual({
+      ok: false,
+      providerStatus: 410,
+      error: 'Push service returned 410',
+    });
   });
 });

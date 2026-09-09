@@ -1,7 +1,7 @@
 import type { PushSubscriptionRecord } from '../../src/models';
-import { buildNotificationTag, type PushNotificationPayload } from '../../src/services/notificationScheduling';
+import type { PushNotificationPayload } from '../../src/services/notificationScheduling';
 import { createPushSubscriptionRecord, isPushSubscriptionInput, type PushSubscriptionInput } from '../../src/services/pushSubscriptionValidation';
-import { sendWebPushNotification, type WebPushConfig } from '../../src/services/webPush';
+import { sendWebPushNotification, type WebPushConfig, type WebPushSendResult } from '../../src/services/webPush';
 
 type D1Value = string | number | null;
 
@@ -111,12 +111,12 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
   if (sendResult.ok) {
     await markPushSubscriptionSuccess(db, subscription.id, nowIso);
 
-    return jsonResponse({ ok: true });
+    return jsonResponse(buildTestPushResponseBody(sendResult));
   }
 
   await markPushSubscriptionFailure(db, subscription.id, nowIso, sendResult.permanentFailure);
 
-  return jsonResponse({ error: sendResult.error ?? 'Could not send test notification.' }, 502);
+  return jsonResponse(buildTestPushResponseBody(sendResult), 502);
 }
 
 export function parsePushMutationRequest(value: unknown): PushMutationRequest | null {
@@ -227,7 +227,21 @@ export function buildTestNotificationPayload(language: 'he' | 'en'): PushNotific
     title: 'Family Logistics Assistant',
     body: language === 'he' ? 'ההתראות פועלות במכשיר זה.' : 'Notifications are working on this device.',
     url: '/',
-    tag: buildNotificationTag('test', 'test', 'test'),
+    tag: 'family-logistics-test',
+  };
+}
+
+export function buildTestPushResponseBody(sendResult: WebPushSendResult):
+  | { ok: true; providerStatus: number }
+  | { ok: false; providerStatus: number; error: string } {
+  if (sendResult.ok) {
+    return { ok: true, providerStatus: sendResult.status };
+  }
+
+  return {
+    ok: false,
+    providerStatus: sendResult.status,
+    error: sendResult.error ?? 'Could not send test notification.',
   };
 }
 
