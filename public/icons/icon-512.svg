@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Family Logistics Assistant">
+  <rect width="512" height="512" rx="112" fill="#24433f"/>
+  <rect x="100" y="118" width="312" height="282" rx="48" fill="#fffdf9"/>
+  <path d="M100 184h312" stroke="#93d5ca" stroke-width="30"/>
+  <circle cx="190" cy="278" r="38" fill="#514b91"/>
+  <circle cx="322" cy="278" r="38" fill="#08796f"/>
+  <path d="M154 352c28-40 62-58 102-58s74 18 102 58" fill="none" stroke="#24433f" stroke-width="32" stroke-linecap="round"/>
+  <path d="M184 82v68M328 82v68" stroke="#f4bf73" stroke-width="30" stroke-linecap="round"/>
+</svg>

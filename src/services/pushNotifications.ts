@@ -51,7 +51,10 @@ export async function enablePushNotifications(language: Language, fetcher: Fetch
   }
 
   const publicKey = await fetchVapidPublicKey(fetcher);
-  const registration = await navigator.serviceWorker.register(serviceWorkerPath, { scope: '/' });
+  const registration = await registerFamilyServiceWorker();
+  if (registration === null) {
+    return 'unsupported';
+  }
   const existingSubscription = await registration.pushManager.getSubscription();
   const subscription =
     existingSubscription ??
@@ -120,6 +123,14 @@ export function isPushSupported(): boolean {
     'serviceWorker' in navigator &&
     'PushManager' in window
   );
+}
+
+export async function registerFamilyServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+    return null;
+  }
+
+  return navigator.serviceWorker.register(serviceWorkerPath, { scope: '/' });
 }
 
 async function fetchVapidPublicKey(fetcher: Fetcher): Promise<string> {

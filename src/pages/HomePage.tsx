@@ -7,6 +7,7 @@ import { DeleteEventDialog } from '../components/DeleteEventDialog';
 import { EventDetailsDialog } from '../components/EventDetailsDialog';
 import { FamilyActionCenter } from '../components/FamilyActionCenter';
 import { OccurrenceEditDialog } from '../components/OccurrenceEditDialog';
+import { PwaInstallControl } from '../components/PwaInstallControl';
 import { ScheduleDateFilters } from '../components/ScheduleDateFilters';
 import { ScheduleFilters, type CategoryFilter, type ChildFilter } from '../components/ScheduleFilters';
 import { TransportationConflicts } from '../components/TransportationConflicts';
@@ -58,6 +59,7 @@ import {
 } from '../services/eventReminders';
 import { detectTransportationConflicts } from '../services/transportationConflictDetection';
 import { buildFamilyActionCenterData } from '../services/familyActionCenter';
+import { registerFamilyServiceWorker } from '../services/pushNotifications';
 import { useUiPreferences } from '../i18n';
 import { addDays, isValidDate } from '../utils/dateTime';
 import {
@@ -270,6 +272,10 @@ export function HomePage() {
   useEffect(() => {
     void refreshSharedData(true);
   }, [refreshSharedData]);
+
+  useEffect(() => {
+    void registerFamilyServiceWorker();
+  }, []);
 
   useEffect(() => {
     if (deepLinkProcessedRef.current || sharedDataStatus === 'syncing') {
@@ -646,6 +652,7 @@ export function HomePage() {
           </div>
           <div className="dashboard-header-tools">
             <UiPreferenceControls />
+            <PwaInstallControl />
             <AppInfoButton />
             <SharedDataStatusIndicator status={sharedDataStatus} />
             <div className="dashboard-actions">

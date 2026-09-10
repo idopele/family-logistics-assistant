@@ -22,6 +22,9 @@ export const monthLabelsByLanguage: Record<Language, readonly string[]> = {
 export const translations = {
   he: {
     appName: 'Family Logistics Assistant',
+    installApp: '\u05d4\u05ea\u05e7\u05df \u05d0\u05ea \u05d4\u05d0\u05e4\u05dc\u05d9\u05e7\u05e6\u05d9\u05d4',
+    dismissInstallPrompt: '\u05d4\u05e1\u05ea\u05e8 \u05d4\u05e6\u05e2\u05ea \u05d4\u05ea\u05e7\u05e0\u05d4',
+    iosInstallGuidance: '\u05dc\u05d4\u05ea\u05e7\u05e0\u05d4 \u05d1\u05d0\u05d9\u05d9\u05e4\u05d5\u05df: \u05e9\u05d9\u05ea\u05d5\u05e3 \u2192 \u05d4\u05d5\u05e1\u05e3 \u05dc\u05de\u05e1\u05da \u05d4\u05d1\u05d9\u05ea',
     appTitle: 'הלו״ז המשפחתי',
     appInfo: 'מידע על המערכת',
     version: 'גרסה',
@@ -213,6 +216,9 @@ export const translations = {
   },
   en: {
     appName: 'Family Logistics Assistant',
+    installApp: 'Install app',
+    dismissInstallPrompt: 'Dismiss install prompt',
+    iosInstallGuidance: 'On iPhone: Share \u2192 Add to Home Screen',
     appTitle: 'Family schedule',
     appInfo: 'App info',
     version: 'Version',
