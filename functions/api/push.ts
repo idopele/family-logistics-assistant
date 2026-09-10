@@ -2,6 +2,8 @@ import type { PushSubscriptionRecord } from '../../src/models';
 import type { PushNotificationPayload } from '../../src/services/notificationScheduling';
 import { createPushSubscriptionRecord, isPushSubscriptionInput, type PushSubscriptionInput } from '../../src/services/pushSubscriptionValidation';
 import { sendWebPushNotification, type WebPushConfig, type WebPushSendResult } from '../../src/services/webPush';
+import { associatePushSubscriptionWithUser } from './authCore';
+import { requireAppSession } from './authGuard';
 
 type D1Value = string | number | null;
 
@@ -43,9 +45,16 @@ type PushSubscriptionRow = {
   last_success_at: string | null;
   last_failure_at: string | null;
   failure_count: number;
+  user_id: string | null;
 };
 
 export async function onRequestGet(context: PagesContext): Promise<Response> {
+  const guard = await requireAppSession(context);
+
+  if (guard instanceof Response) {
+    return guard;
+  }
+
   if (!context.env.VAPID_PUBLIC_KEY) {
     return jsonResponse({ error: 'Push notifications are not configured.' }, 503);
   }
@@ -54,6 +63,12 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
 }
 
 export async function onRequestPost(context: PagesContext): Promise<Response> {
+  const guard = await requireAppSession(context);
+
+  if (guard instanceof Response) {
+    return guard;
+  }
+
   const db = context.env.FAMILY_DB;
 
   if (db === undefined) {
@@ -82,6 +97,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       context.request.headers.get('user-agent'),
       new Date().toISOString(),
     );
+    await associatePushSubscriptionWithUser(db, record.endpoint, guard.auth.user.id);
 
     return jsonResponse({ ok: true, subscriptionId: record.id, enabled: record.enabled });
   }
@@ -165,7 +181,7 @@ export async function upsertPushSubscription(
 
   await db
     .prepare(
-      'INSERT INTO push_subscriptions (id, endpoint, p256dh, auth, enabled, device_label, user_agent, created_at, updated_at, last_success_at, last_failure_at, failure_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth, enabled = excluded.enabled, device_label = excluded.device_label, user_agent = excluded.user_agent, updated_at = excluded.updated_at',
+      'INSERT INTO push_subscriptions (id, endpoint, p256dh, auth, enabled, device_label, user_agent, created_at, updated_at, last_success_at, last_failure_at, failure_count, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth, enabled = excluded.enabled, device_label = excluded.device_label, user_agent = excluded.user_agent, updated_at = excluded.updated_at',
     )
     .bind(
       record.id,
@@ -180,6 +196,7 @@ export async function upsertPushSubscription(
       record.lastSuccessAt ?? null,
       record.lastFailureAt ?? null,
       record.failureCount,
+      record.userId ?? null,
     )
     .run();
 
@@ -214,7 +231,7 @@ export async function markPushSubscriptionFailure(
 export async function readPushSubscriptionByEndpoint(db: D1Database, endpoint: string): Promise<PushSubscriptionRecord | null> {
   const row = await db
     .prepare(
-      'SELECT id, endpoint, p256dh, auth, enabled, device_label, user_agent, created_at, updated_at, last_success_at, last_failure_at, failure_count FROM push_subscriptions WHERE endpoint = ?',
+      'SELECT id, endpoint, p256dh, auth, enabled, device_label, user_agent, created_at, updated_at, last_success_at, last_failure_at, failure_count, user_id FROM push_subscriptions WHERE endpoint = ?',
     )
     .bind(endpoint)
     .first<PushSubscriptionRow>();
@@ -269,6 +286,7 @@ function pushSubscriptionFromRow(row: PushSubscriptionRow): PushSubscriptionReco
     enabled: row.enabled === 1,
     deviceLabel: row.device_label,
     userAgent: row.user_agent,
+    userId: row.user_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     lastSuccessAt: row.last_success_at,

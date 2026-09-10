@@ -6,6 +6,7 @@ export interface PushSubscriptionRecord {
   enabled: boolean;
   deviceLabel?: string | null;
   userAgent?: string | null;
+  userId?: string | null;
   createdAt: string;
   updatedAt: string;
   lastSuccessAt?: string | null;

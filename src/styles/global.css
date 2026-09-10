@@ -101,6 +101,73 @@ summary:focus-visible {
 
 #root { min-height: 100vh; }
 
+.auth-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding:
+    max(var(--space-4), env(safe-area-inset-top))
+    max(var(--space-4), env(safe-area-inset-right))
+    max(var(--space-4), env(safe-area-inset-bottom))
+    max(var(--space-4), env(safe-area-inset-left));
+}
+
+.auth-card {
+  display: grid;
+  gap: var(--space-4);
+  width: min(100%, 28rem);
+  border: 1px solid rgb(255 255 255 / 74%);
+  border-radius: var(--radius-xl);
+  background: rgb(255 253 249 / 90%);
+  box-shadow: var(--shadow-pop);
+  padding: var(--space-5);
+}
+
+.auth-card p,
+.auth-card h1 {
+  margin: 0;
+}
+
+.auth-card p {
+  color: var(--color-text-soft);
+  font-size: 0.86rem;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.auth-card h1 {
+  color: var(--color-text);
+  font-size: clamp(1.5rem, 8vw, 2.2rem);
+  font-weight: 950;
+  line-height: 1.1;
+}
+
+.auth-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.auth-form__error,
+.auth-form__hint {
+  margin: 0;
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font-weight: 850;
+}
+
+.auth-form__error {
+  border: 1px solid #efb7bc;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.auth-form__hint {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-soft);
+  color: var(--color-text-soft);
+}
+
 .dashboard-page {
   min-height: 100vh;
   padding:
@@ -516,6 +583,71 @@ summary:focus-visible {
 }
 .push-notifications__message {
   color: var(--color-primary);
+}
+.user-management {
+  display: grid;
+  gap: var(--space-2);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-3);
+}
+.user-management h3,
+.user-management p {
+  margin: 0;
+}
+.user-management h3 {
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-weight: 950;
+}
+.user-management__invite,
+.user-management__list {
+  display: grid;
+  gap: var(--space-2);
+}
+.user-management__invite button,
+.user-management__row button {
+  min-height: 2rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg-soft);
+  color: var(--color-text-soft);
+  font-size: 0.75rem;
+  font-weight: 900;
+  padding: 0 0.65rem;
+}
+.user-management__invite-link {
+  color: var(--color-primary);
+  font-size: 0.78rem;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+.user-management__row {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-soft);
+  padding: var(--space-2);
+}
+.user-management__row strong,
+.user-management__row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.user-management__row strong {
+  color: var(--color-text);
+  font-size: 0.84rem;
+  font-weight: 950;
+}
+.user-management__row span {
+  color: var(--color-text-soft);
+  font-size: 0.76rem;
+  font-weight: 820;
+}
+.user-management__row div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
 }
 .add-event-button, .add-child-button { padding: 0 1rem; }
 .add-event-button { border-color: var(--color-primary); background: var(--color-primary); color: #fff; box-shadow: 0 0.55rem 1.2rem rgb(36 67 63 / 22%); }

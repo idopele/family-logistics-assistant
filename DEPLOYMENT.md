@@ -76,6 +76,7 @@ Database migration file:
 - `migrations/0001_shared_family_data.sql`
 - `migrations/0002_event_reminders.sql`
 - `migrations/0003_push_notifications.sql`
+- `migrations/0004_authentication_members.sql`
 
 The migration creates:
 
@@ -86,6 +87,12 @@ The migration creates:
 - `event_reminders`
 - `push_subscriptions`
 - `notification_deliveries`
+- `workspaces`
+- `app_users`
+- `workspace_memberships`
+- `auth_sessions`
+- `auth_invites`
+- `user_schedule_member_links`
 - `app_meta`
 
 The existing Basic Auth middleware protects both the frontend and `/api/*` requests. Do not create unauthenticated API routes.
@@ -106,6 +113,82 @@ Do not document database IDs, API tokens, passwords, or secret values in the rep
 Reminder migration can be applied from the Cloudflare dashboard: open the D1 database, go to Console, paste the SQL from `migrations/0002_event_reminders.sql`, and run it against the existing family database. Do not paste or document credentials while applying migrations.
 
 Push notification migration can also be applied from the Cloudflare dashboard: open the D1 database, go to Console, paste the SQL from `migrations/0003_push_notifications.sql`, and run it against `family-logistics-db`.
+
+Authentication migration can be applied from the Cloudflare dashboard: open D1 -> `family-logistics-db` -> Console, paste the SQL from `migrations/0004_authentication_members.sql`, and run it once. This migration is additive and must not drop existing schedule, transportation, reminder, push subscription, or delivery tables.
+
+## Application Authentication
+
+Step 13 adds in-app authentication while keeping the existing HTTP Basic Auth middleware as an outer temporary safety layer. Basic Auth still uses `FAMILY_AUTH_USERNAME` and `FAMILY_AUTH_PASSWORD` and must not be removed until the Step 13.1/14 cutover is verified.
+
+Architecture:
+
+- `workspaces` introduces a future-ready workspace foundation. The app operates in single-workspace mode using `default-family-workspace` with type `family`.
+- `app_users` stores login accounts. A login account is separate from a schedule member/child such as Daniel or Emanuel.
+- `workspace_memberships` stores coarse roles: `owner`, `admin`, `member`, and `viewer`.
+- `user_schedule_member_links` optionally connects an app user to an existing schedule member id without requiring the schedule member to exist in D1.
+- `auth_sessions` stores server-side sessions. The browser receives an HttpOnly cookie; D1 stores only a hash of the raw session token.
+- `auth_invites` stores one-time invite records. D1 stores only a hash of the invite token.
+
+Password hashing:
+
+- Algorithm: PBKDF2 with SHA-256 through Web Crypto.
+- Format: `pbkdf2-sha256-v1$<iterations>$<salt>$<hash>`.
+- Iterations: `310000`.
+- Salt: 16 cryptographically random bytes.
+- Hash length: 32 bytes.
+- Password policy: 10 to 256 characters. Spaces and symbols are allowed for password managers.
+
+Session policy:
+
+- Lifetime: 30 days maximum.
+- Logout revokes the current server-side session and expires the browser cookie.
+- Disabled users cannot log in and existing sessions stop authorizing requests.
+- Production cookie: `__Host-family_session`, `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/`.
+- Local development fallback cookie: `family_session`, `HttpOnly`, `SameSite=Lax`, `Path=/`.
+
+Bootstrap:
+
+1. Configure `AUTH_BOOTSTRAP_TOKEN` as a Cloudflare Pages encrypted Secret.
+2. Deploy the app and open it after Basic Auth.
+3. If there are zero app users/owners, the frontend shows initial setup.
+4. Enter display name, email, password, and the bootstrap token.
+5. The server creates the default workspace if needed, creates the first owner account, creates owner membership, and signs in with an HttpOnly session cookie.
+6. Once any app user or owner exists, bootstrap refuses normal use.
+
+Invites:
+
+- Owner/admin can create invite links manually in App Info -> Manage users.
+- Normal invites can create `admin`, `member`, or `viewer` accounts. They cannot create another `owner`.
+- Invite lifetime: 7 days.
+- Invite links contain the raw one-time token in `?invite=<token>`.
+- The database stores only the token hash.
+- Used, expired, or revoked invites fail safely.
+- Email delivery is not included yet; copy the invite URL manually and send it outside the app.
+
+API authorization:
+
+- Existing schedule API `/api/shared` requires a valid app session.
+- Push API `/api/push` requires a valid app session for public key lookup, subscription management, and test sends.
+- Unsafe mutations validate JSON content type and same-origin `Origin` when present.
+- React UI hiding is not trusted as authorization.
+
+Push/account association:
+
+- `push_subscriptions.user_id` is nullable.
+- Existing subscriptions with `NULL` user id remain valid and continue receiving family-wide reminders.
+- When an authenticated browser registers or refreshes a push subscription, the row is associated with that user for future targeted notification work.
+- The current scheduler remains family-wide and unchanged.
+
+Deep links:
+
+- Existing `?eventId=<eventId>&date=YYYY-MM-DD` links are preserved.
+- If the session is valid, the dashboard opens the exact occurrence.
+- If the session expired, the Login screen appears first; after successful login, the original event/date query remains and the occurrence opens.
+- Invite links use `?invite=<token>` and remove only the invite parameter after successful acceptance.
+
+Important limitation:
+
+External sharing is NOT ready for real use until Step 14 adds the fine-grained permission engine and Shared Views. Viewer accounts are only a coarse foundation in Step 13.
 
 ## Web Push Notifications
 
@@ -208,20 +291,9 @@ Manual push validation plan:
 11. Confirm the app is blocked until valid shared-family HTTP Basic Authentication credentials are entered.
 12. After authentication, confirm the app loads normally.
 
-## localStorage MVP Limitation
+## Local Browser Data Migration
 
-All user-created data is currently stored in browser `localStorage`.
-
-That means:
-
-- Each browser/device has its own custom data.
-- Adding an event on Device A does not make it appear on Device B.
-- Adding a child on Device A does not make it appear on Device B.
-- Transportation plans and occurrence changes are also device-local.
-- Seed schedule data is common because it is bundled with the application.
-- Shared synchronized family data will be implemented later with the backend.
-
-Do not delete existing browser data during deployment testing unless you intentionally want to reset that browser's local MVP data.
+The shared family dashboard now stores mutable schedule data in D1. Older browser-local data may still exist in `localStorage`; the app can offer to import it into the shared dashboard after authentication. Do not delete existing browser data during deployment testing unless you intentionally want to reset that browser's local fallback data.
 
 ## Production Safety Checklist
 
@@ -236,6 +308,10 @@ Before sharing the private URL:
 - `migrations/0001_shared_family_data.sql`
 - `migrations/0002_event_reminders.sql` has been applied to the D1 database.
 - `migrations/0003_push_notifications.sql` has been applied to the D1 database.
+- `migrations/0004_authentication_members.sql` has been applied to the D1 database.
+- `AUTH_BOOTSTRAP_TOKEN` is configured as an encrypted Cloudflare Pages Secret before first-owner setup.
+- First-owner bootstrap succeeds exactly once.
+- Login, logout, invite acceptance, account disable, and session revoke are manually verified.
 - The Pages Function password gate is verified in an Incognito/private browser.
 - The app works at desktop, tablet, and phone widths.
 - Hebrew mode uses RTL.
@@ -248,8 +324,6 @@ Before sharing the private URL:
 
 This deployment does not include:
 
-- In-app authentication
-- Cross-device synchronization
 - External calendar APIs
 - WhatsApp integration
 - AI features

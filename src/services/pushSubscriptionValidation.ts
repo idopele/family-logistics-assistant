@@ -40,6 +40,7 @@ export function createPushSubscriptionRecord({
   existing?: PushSubscriptionRecord | null;
   deviceLabel?: string | null;
   userAgent?: string | null;
+  userId?: string | null;
   nowIso: string;
   id?: string;
 }): PushSubscriptionRecord {
@@ -51,6 +52,7 @@ export function createPushSubscriptionRecord({
     enabled: true,
     deviceLabel: normalizeOptionalText(deviceLabel),
     userAgent: normalizeOptionalText(userAgent),
+    userId: existing?.userId ?? null,
     createdAt: existing?.createdAt ?? nowIso,
     updatedAt: nowIso,
     lastSuccessAt: existing?.lastSuccessAt ?? null,

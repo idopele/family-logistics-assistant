@@ -61,6 +61,7 @@ import { detectTransportationConflicts } from '../services/transportationConflic
 import { buildFamilyActionCenterData } from '../services/familyActionCenter';
 import { registerFamilyServiceWorker } from '../services/pushNotifications';
 import { useUiPreferences } from '../i18n';
+import type { AuthSession } from '../services/authClient';
 import { addDays, isValidDate } from '../utils/dateTime';
 import {
   getDefaultWeekdayFilter,
@@ -87,7 +88,7 @@ type PendingConfirmation =
 
 type SharedDataStatus = 'syncing' | 'shared' | 'issue';
 
-export function HomePage() {
+export function HomePage({ authSession, onLogout }: { authSession?: AuthSession; onLogout?: () => void } = {}) {
   const { language, t } = useUiPreferences();
   const today = useMemo(() => getTodayDateString(), []);
   const currentTime = useMemo(() => getCurrentTimeString(), []);
@@ -653,7 +654,7 @@ export function HomePage() {
           <div className="dashboard-header-tools">
             <UiPreferenceControls />
             <PwaInstallControl />
-            <AppInfoButton />
+            <AppInfoButton authSession={authSession} onLogout={onLogout} />
             <SharedDataStatusIndicator status={sharedDataStatus} />
             <div className="dashboard-actions">
               <button className="add-event-button" type="button" onClick={() => setIsAddEventOpen(true)}>
