@@ -40,6 +40,7 @@ const reminder: EventReminder = {
   createdAt: '2026-09-01T00:00:00.000Z',
   updatedAt: '2026-09-01T00:00:00.000Z',
 };
+const scheduledForUtc = '2026-09-09T14:00:00.000Z';
 
 describe('notification scheduling', () => {
   it('selects due reminders and ignores reminders that are not due', () => {
@@ -100,13 +101,54 @@ describe('notification scheduling', () => {
       reminder,
       { ...event, eventId: event.id, date: '2026-09-09' },
       child,
+      scheduledForUtc,
       'en',
     );
 
     expect(payload.title).toBe('Emanuel – Ballet');
     expect(payload.body).toBe('Starts at 17:30');
     expect(payload.url).toBe('/?eventId=test-event&date=2026-09-09');
-    expect(payload.tag).toBe(buildNotificationTag(reminder.id, event.id, '2026-09-09'));
+    expect(payload.tag).toBe(buildNotificationTag(reminder.id, event.id, '2026-09-09', scheduledForUtc));
+    expect(payload.renotify).toBe(true);
+  });
+
+  it('keeps the same real reminder tag for retries of the same scheduled delivery', () => {
+    const firstTag = buildNotificationTag(reminder.id, event.id, '2026-09-09', scheduledForUtc);
+    const retryTag = buildNotificationTag(reminder.id, event.id, '2026-09-09', scheduledForUtc);
+
+    expect(firstTag).toBe(retryTag);
+    expect(firstTag).toMatch(/^family-reminder-[a-f0-9]{8}$/);
+  });
+
+  it('changes the real reminder tag when a reschedule changes scheduledForUtc', () => {
+    const originalTag = buildNotificationTag(reminder.id, event.id, '2026-09-09', scheduledForUtc);
+    const rescheduledTag = buildNotificationTag(
+      reminder.id,
+      event.id,
+      '2026-09-09',
+      '2026-09-09T15:00:00.000Z',
+    );
+
+    expect(rescheduledTag).not.toBe(originalTag);
+  });
+
+  it('uses the resolved scheduledForUtc in due reminder payload tags', () => {
+    const originalJob = buildJobs(scheduledForUtc)[0];
+    const exception: EventException = {
+      id: 'exception-rescheduled',
+      eventId: event.id,
+      date: '2026-09-09',
+      type: 'modified',
+      startTime: '18:30',
+    };
+    const rescheduledJob = buildJobs('2026-09-09T15:00:00.000Z', { exceptions: [exception] })[0];
+
+    expect(originalJob?.notification.url).toBe('/?eventId=test-event&date=2026-09-09');
+    expect(rescheduledJob?.notification.url).toBe('/?eventId=test-event&date=2026-09-09');
+    expect(rescheduledJob?.notification.tag).not.toBe(originalJob?.notification.tag);
+    expect(rescheduledJob?.notification.tag).toBe(
+      buildNotificationTag(reminder.id, event.id, '2026-09-09', '2026-09-09T15:00:00.000Z'),
+    );
   });
 
   it('filters enabled subscriptions and classifies retryable failures', () => {

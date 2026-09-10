@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { Child, Event, EventReminder, PushSubscriptionRecord } from '../../../src/models';
 import type { WebPushSendResult } from '../../../src/services/webPush';
-import { processDueNotifications } from '../src';
+import { buildDeliveryId, processDueNotifications } from '../src';
 
 const child: Child = { id: 'worker-child', name: 'Daniel', color: '#2563EB', isActive: true };
 const event: Event = {
@@ -96,7 +96,21 @@ describe('push scheduler Worker delivery idempotency', () => {
 
     expect(db.subscriptions[0]?.failure_count).toBe(3);
     expect(sendPush).toHaveBeenCalledTimes(3);
+    expect(sendPush.mock.calls.map((call) => call[1].tag)).toEqual([
+      sendPush.mock.calls[0]?.[1].tag,
+      sendPush.mock.calls[0]?.[1].tag,
+      sendPush.mock.calls[0]?.[1].tag,
+    ]);
     expect(finalSummary.skipped).toBe(1);
+  });
+
+  it('keeps D1 delivery uniqueness based on reminder, subscription, and scheduled time', () => {
+    const firstDeliveryId = buildDeliveryId(reminder.id, 'push-one', '2026-09-09T14:00:00.000Z');
+    const retryDeliveryId = buildDeliveryId(reminder.id, 'push-one', '2026-09-09T14:00:00.000Z');
+    const rescheduledDeliveryId = buildDeliveryId(reminder.id, 'push-one', '2026-09-09T15:00:00.000Z');
+
+    expect(retryDeliveryId).toBe(firstDeliveryId);
+    expect(rescheduledDeliveryId).not.toBe(firstDeliveryId);
   });
 });
 

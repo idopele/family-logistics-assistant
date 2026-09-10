@@ -20,6 +20,7 @@ export interface PushNotificationPayload {
   body: string;
   url: string;
   tag: string;
+  renotify?: boolean;
 }
 
 export interface FamilyScheduleData {
@@ -76,7 +77,7 @@ export function resolveDueReminderJobs({
         occurrence,
         child,
         timing,
-        notification: buildReminderNotificationPayload(reminder, occurrence, child, language),
+        notification: buildReminderNotificationPayload(reminder, occurrence, child, timing.scheduledForUtc, language),
       },
     ];
   });
@@ -86,6 +87,7 @@ export function buildReminderNotificationPayload(
   reminder: Pick<EventReminder, 'id'>,
   occurrence: Pick<ScheduleOccurrence, 'eventId' | 'date' | 'title' | 'startTime' | 'location'>,
   child: Pick<Child, 'name'>,
+  scheduledForUtc: string,
   language: 'he' | 'en' = 'he',
 ): PushNotificationPayload {
   const searchParams = new URLSearchParams({ eventId: occurrence.eventId, date: occurrence.date });
@@ -95,12 +97,18 @@ export function buildReminderNotificationPayload(
     title: `${child.name} – ${occurrence.title}`,
     body: language === 'he' ? `מתחיל ב-${occurrence.startTime}${locationSuffix}` : `Starts at ${occurrence.startTime}${locationSuffix}`,
     url: `/?${searchParams.toString()}`,
-    tag: buildNotificationTag(reminder.id, occurrence.eventId, occurrence.date),
+    tag: buildNotificationTag(reminder.id, occurrence.eventId, occurrence.date, scheduledForUtc),
+    renotify: true,
   };
 }
 
-export function buildNotificationTag(reminderId: string, eventId: string, occurrenceDate: string): string {
-  return `${reminderId}:${eventId}:${occurrenceDate}`;
+export function buildNotificationTag(
+  reminderId: string,
+  eventId: string,
+  occurrenceDate: string,
+  scheduledForUtc: string,
+): string {
+  return `family-reminder-${simpleHash(`${reminderId}|${eventId}|${occurrenceDate}|${scheduledForUtc}`)}`;
 }
 
 export function shouldRetryDelivery(attemptCount: number, isPermanentFailure: boolean): boolean {
@@ -113,4 +121,15 @@ export function shouldDisableSubscriptionForStatus(status: number): boolean {
 
 export function getEnabledSubscriptions(subscriptions: PushSubscriptionRecord[]): PushSubscriptionRecord[] {
   return subscriptions.filter((subscription) => subscription.enabled);
+}
+
+function simpleHash(value: string): string {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, '0');
 }

@@ -13,6 +13,7 @@ async function showPushNotification(event) {
   const options = {
     body: payload.body || 'New family notification',
     tag: payload.tag || undefined,
+    renotify: payload.renotify === true,
     data: {
       url: payload.url || '/',
     },
