@@ -51,13 +51,22 @@ describe('push API request parsing', () => {
   });
 
   it('builds localized server-originated test push payloads', () => {
-    expect(buildTestNotificationPayload('en')).toMatchObject({
+    expect(buildTestNotificationPayload('en', 'test-1')).toMatchObject({
       title: 'Family Logistics Assistant',
       body: 'Notifications are working on this device.',
       url: '/',
-      tag: 'family-logistics-test',
+      tag: 'family-logistics-test-test-1',
     });
-    expect(buildTestNotificationPayload('he').body).toBe('ההתראות פועלות במכשיר זה.');
+    expect(buildTestNotificationPayload('he', 'test-2').body).toBe('ההתראות פועלות במכשיר זה.');
+  });
+
+  it('creates a unique notification tag for each manual test send', () => {
+    const firstPayload = buildTestNotificationPayload('en');
+    const secondPayload = buildTestNotificationPayload('en');
+
+    expect(firstPayload.tag).toMatch(/^family-logistics-test-/);
+    expect(secondPayload.tag).toMatch(/^family-logistics-test-/);
+    expect(firstPayload.tag).not.toBe(secondPayload.tag);
   });
 
   it('returns safe provider diagnostics for test push success and failure', () => {

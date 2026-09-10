@@ -222,12 +222,15 @@ export async function readPushSubscriptionByEndpoint(db: D1Database, endpoint: s
   return row === null ? null : pushSubscriptionFromRow(row);
 }
 
-export function buildTestNotificationPayload(language: 'he' | 'en'): PushNotificationPayload {
+export function buildTestNotificationPayload(
+  language: 'he' | 'en',
+  tagSuffix = createTestNotificationTagSuffix(),
+): PushNotificationPayload {
   return {
     title: 'Family Logistics Assistant',
     body: language === 'he' ? 'ההתראות פועלות במכשיר זה.' : 'Notifications are working on this device.',
     url: '/',
-    tag: 'family-logistics-test',
+    tag: `family-logistics-test-${tagSuffix}`,
   };
 }
 
@@ -272,6 +275,14 @@ function pushSubscriptionFromRow(row: PushSubscriptionRow): PushSubscriptionReco
     lastFailureAt: row.last_failure_at,
     failureCount: row.failure_count,
   };
+}
+
+function createTestNotificationTagSuffix(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
