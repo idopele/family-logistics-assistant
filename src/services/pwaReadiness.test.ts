@@ -35,7 +35,8 @@ describe('PWA readiness metadata', () => {
   });
 
   it('links the manifest and mobile home-screen metadata from the HTML head', () => {
-    expect(indexHtml).toContain('<link rel="manifest" href="/manifest.webmanifest" />');
+    expect(indexHtml).toContain('<link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials" />');
+    expect(indexHtml).toContain('crossorigin="use-credentials"');
     expect(indexHtml).toContain('<meta name="theme-color" content="#24433f" />');
     expect(indexHtml).toContain('<meta name="apple-mobile-web-app-capable" content="yes" />');
     expect(indexHtml).toContain('<link rel="apple-touch-icon" href="/icons/icon-192.svg" />');
