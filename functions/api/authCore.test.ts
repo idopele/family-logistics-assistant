@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   acceptInvite,
@@ -12,6 +12,8 @@ import {
   hashPassword,
   inviteLifetimeDays,
   loginUser,
+  maximumPasswordLength,
+  minimumPasswordLength,
   normalizeEmail,
   parsePasswordHash,
   revokeAllSessionsForUser,
@@ -22,6 +24,7 @@ import {
   setUserStatus,
   verifyPassword,
 } from './authCore';
+import { onRequestPost as handleBootstrapRequest } from './auth/bootstrap';
 
 const nowIso = '2026-09-10T10:00:00.000Z';
 
@@ -39,6 +42,11 @@ describe('authCore password hashing', () => {
 
   it('normalizes email consistently', () => {
     expect(normalizeEmail('  Parent@Example.COM ')).toBe('parent@example.com');
+  });
+
+  it('keeps the documented password length policy unchanged', () => {
+    expect(minimumPasswordLength).toBe(10);
+    expect(maximumPasswordLength).toBe(256);
   });
 });
 
@@ -85,6 +93,54 @@ describe('authCore sessions, bootstrap, invites, and account management', () => 
         nowIso,
       }),
     ).rejects.toThrow();
+  });
+
+  it('returns safe bootstrap diagnostic codes for known failures', async () => {
+    await expectBootstrapCode(new FakeAuthD1Database(), { bootstrapToken: 'wrong' }, 'invalid_bootstrap_token');
+
+    const existingDb = new FakeAuthD1Database();
+    await createOwner(existingDb);
+    await expectBootstrapCode(existingDb, {}, 'bootstrap_closed');
+
+    await expectBootstrapCode(new FakeAuthD1Database(), { displayName: 'I', email: 'bad', password: 'short' }, 'invalid_account_input');
+  });
+
+  it('returns a safe diagnostic code for unexpected bootstrap internals without leaking secrets', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const db = new FakeAuthD1Database({ failOnQueryIncludes: 'INSERT INTO app_users' });
+    const response = await callBootstrapRoute(db, {
+      bootstrapToken: 'setup-secret',
+      password: 'super secret password',
+    });
+    const responseText = await response.text();
+
+    expect(response.status).toBe(403);
+    expect(responseText).toContain('"code":"user_creation_failed"');
+    expect(responseText).toContain('Initial setup could not be completed.');
+    expect(responseText).not.toContain('setup-secret');
+    expect(responseText).not.toContain('super secret password');
+    expect(responseText).not.toContain('pbkdf2-sha256-v1');
+    expect(responseText).not.toContain('session');
+    expect(consoleError).toHaveBeenCalledWith('bootstrap failed', {
+      code: 'user_creation_failed',
+      stage: 'createUser',
+      errorName: 'Error',
+    });
+    consoleError.mockRestore();
+  });
+
+  it('keeps successful bootstrap response safe and unchanged', async () => {
+    const response = await callBootstrapRoute(new FakeAuthD1Database(), { bootstrapToken: 'setup-secret' });
+    const responseText = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Set-Cookie')).toContain('HttpOnly');
+    expect(responseText).toContain('"authenticated":true');
+    expect(responseText).toContain('"displayName":"Ido"');
+    expect(responseText).not.toContain('setup-secret');
+    expect(responseText).not.toContain('family password');
+    expect(responseText).not.toContain('pbkdf2-sha256-v1');
+    expect(responseText).not.toContain(response.headers.get('Set-Cookie') ?? 'missing-cookie');
   });
 
   it('login creates hashed sessions and valid sessions authenticate until expired or revoked', async () => {
@@ -171,6 +227,48 @@ describe('authCore sessions, bootstrap, invites, and account management', () => 
   });
 });
 
+async function expectBootstrapCode(
+  db: FakeAuthD1Database,
+  overrides: Partial<{ displayName: string; email: string; password: string; bootstrapToken: string }>,
+  code: string,
+) {
+  const response = await callBootstrapRoute(db, overrides);
+  const responseText = await response.text();
+
+  expect(response.status).toBe(403);
+  expect(responseText).toContain(`"code":"${code}"`);
+  expect(responseText).not.toContain(overrides.bootstrapToken ?? 'setup-secret');
+  expect(responseText).not.toContain(overrides.password ?? 'family password');
+  expect(responseText).not.toContain('pbkdf2-sha256-v1');
+}
+
+function callBootstrapRoute(
+  db: FakeAuthD1Database,
+  overrides: Partial<{ displayName: string; email: string; password: string; bootstrapToken: string }>,
+): Promise<Response> {
+  const body = {
+    displayName: overrides.displayName ?? 'Ido',
+    email: overrides.email ?? 'ido@example.com',
+    password: overrides.password ?? 'family password',
+    bootstrapToken: overrides.bootstrapToken ?? 'setup-secret',
+  };
+
+  return handleBootstrapRequest({
+    request: new Request('https://family.example.test/api/auth/bootstrap', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://family.example.test',
+      },
+      body: JSON.stringify(body),
+    }),
+    env: {
+      FAMILY_DB: db,
+      AUTH_BOOTSTRAP_TOKEN: 'setup-secret',
+    },
+  });
+}
+
 async function createOwner(db: FakeAuthD1Database) {
   return bootstrapFirstOwner({
     db,
@@ -200,6 +298,8 @@ class FakeAuthD1Database {
   invites: Row[] = [];
   links: Row[] = [];
   pushSubscriptions: Row[] = [];
+
+  constructor(readonly options: { failOnQueryIncludes?: string } = {}) {}
 
   prepare(query: string) {
     return new FakeStatement(this, query);
@@ -233,6 +333,7 @@ class FakeStatement {
 
   private select(): Row[] {
     const query = this.query;
+    this.throwIfConfiguredFailure();
 
     if (query.includes('COUNT(*) AS count FROM app_users')) {
       return [{ count: this.db.users.length }];
@@ -307,6 +408,7 @@ class FakeStatement {
 
   private mutate(): void {
     const query = this.query;
+    this.throwIfConfiguredFailure();
 
     if (query.startsWith('INSERT INTO workspaces')) {
       if (!this.db.workspaces.some((item) => item.id === this.values[0])) {
@@ -425,6 +527,15 @@ class FakeStatement {
         subscription.user_id = this.values[0];
         subscription.updated_at = this.values[1];
       }
+    }
+  }
+
+  private throwIfConfiguredFailure(): void {
+    if (
+      this.db.options.failOnQueryIncludes !== undefined &&
+      this.query.includes(this.db.options.failOnQueryIncludes)
+    ) {
+      throw new Error('simulated database failure with forbidden secret-like details');
     }
   }
 }

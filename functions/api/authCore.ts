@@ -14,6 +14,17 @@ export type D1Database = {
 export type AuthRole = 'owner' | 'admin' | 'member' | 'viewer';
 export type AuthUserStatus = 'active' | 'disabled';
 export type WorkspaceType = 'family';
+export type BootstrapFailureCode =
+  | 'invalid_bootstrap_token'
+  | 'bootstrap_closed'
+  | 'invalid_account_input'
+  | 'workspace_setup_failed'
+  | 'user_creation_failed'
+  | 'membership_creation_failed'
+  | 'session_creation_failed'
+  | 'session_lookup_failed'
+  | 'database_error'
+  | 'unexpected_error';
 
 export interface AuthEnv {
   FAMILY_DB?: D1Database;
@@ -106,8 +117,8 @@ const passwordSaltBytes = 16;
 const passwordHashBytes = 32;
 const sessionTokenBytes = 32;
 const inviteTokenBytes = 32;
-const minimumPasswordLength = 10;
-const maximumPasswordLength = 256;
+export const minimumPasswordLength = 10;
+export const maximumPasswordLength = 256;
 
 export function getDatabase(env: AuthEnv): D1Database | null {
   return env.FAMILY_DB ?? null;
@@ -268,22 +279,42 @@ export async function bootstrapFirstOwner({
     throw new AuthError('invalid_bootstrap_token');
   }
 
-  if ((await countUsers(db)) > 0 || (await countOwners(db)) > 0) {
+  let hasExistingAccounts: boolean;
+
+  try {
+    hasExistingAccounts = (await countUsers(db)) > 0 || (await countOwners(db)) > 0;
+  } catch (error) {
+    throw new BootstrapDiagnosticError('database_error', 'count_users_owners', error);
+  }
+
+  if (hasExistingAccounts) {
     throw new AuthError('bootstrap_closed');
   }
 
-  assertValidAccountInput(displayName, email, password);
+  if (!validateDisplayName(displayName) || !validateEmail(email) || !validatePassword(password)) {
+    throw new AuthError('invalid_account_input');
+  }
 
-  const workspace = await ensureDefaultWorkspace(db, nowIso);
-  const user = await createUser(db, { email, displayName, password, nowIso });
+  const workspace = await runBootstrapStage('workspace_setup_failed', 'ensureDefaultWorkspace', () =>
+    ensureDefaultWorkspace(db, nowIso),
+  );
+  const user = await runBootstrapStage('user_creation_failed', 'createUser', () =>
+    createUser(db, { email, displayName, password, nowIso }),
+  );
 
-  await createMembership(db, workspace.id, user.id, 'owner', nowIso);
+  await runBootstrapStage('membership_creation_failed', 'createMembership', () =>
+    createMembership(db, workspace.id, user.id, 'owner', nowIso),
+  );
 
-  const session = await createSession(db, user.id, workspace.id, nowIso);
-  const auth = await readSafeSessionByUserWorkspace(db, user.id, workspace.id);
+  const session = await runBootstrapStage('session_creation_failed', 'createSession', () =>
+    createSession(db, user.id, workspace.id, nowIso),
+  );
+  const auth = await runBootstrapStage('session_lookup_failed', 'readSafeSessionByUserWorkspace', () =>
+    readSafeSessionByUserWorkspace(db, user.id, workspace.id),
+  );
 
   if (auth === null) {
-    throw new Error('Bootstrap session unavailable.');
+    throw new BootstrapDiagnosticError('session_lookup_failed', 'readSafeSessionByUserWorkspace');
   }
 
   return { auth: { ...auth, sessionId: session.sessionId }, sessionToken: session.token, expiresAt: session.expiresAt };
@@ -557,6 +588,44 @@ export class AuthError extends Error {
   }
 }
 
+export class BootstrapDiagnosticError extends Error {
+  constructor(
+    public readonly code: BootstrapFailureCode,
+    public readonly stage: string,
+    public readonly causeValue?: unknown,
+  ) {
+    super(code);
+  }
+}
+
+export function getSafeBootstrapFailureCode(error: unknown): BootstrapFailureCode {
+  if (error instanceof AuthError) {
+    return isBootstrapFailureCode(error.code) ? error.code : 'unexpected_error';
+  }
+
+  if (error instanceof BootstrapDiagnosticError) {
+    return error.code;
+  }
+
+  return 'unexpected_error';
+}
+
+export function getSafeBootstrapFailureLog(error: unknown): { code: BootstrapFailureCode; stage: string; errorName: string } {
+  if (error instanceof BootstrapDiagnosticError) {
+    return {
+      code: error.code,
+      stage: error.stage,
+      errorName: getErrorName(error.causeValue),
+    };
+  }
+
+  return {
+    code: getSafeBootstrapFailureCode(error),
+    stage: error instanceof AuthError ? error.code : 'unexpected',
+    errorName: getErrorName(error),
+  };
+}
+
 async function createUser(
   db: D1Database,
   { email, displayName, password, nowIso }: { email: string; displayName: string; password: string; nowIso: string },
@@ -673,6 +742,41 @@ function assertValidAccountInput(displayName: string, email: string, password: s
   if (!validateDisplayName(displayName) || !validateEmail(email) || !validatePassword(password)) {
     throw new AuthError('bad_request');
   }
+}
+
+async function runBootstrapStage<T>(
+  code: BootstrapFailureCode,
+  stage: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof AuthError || error instanceof BootstrapDiagnosticError) {
+      throw error;
+    }
+
+    throw new BootstrapDiagnosticError(code, stage, error);
+  }
+}
+
+function isBootstrapFailureCode(code: string): code is BootstrapFailureCode {
+  return (
+    code === 'invalid_bootstrap_token' ||
+    code === 'bootstrap_closed' ||
+    code === 'invalid_account_input' ||
+    code === 'workspace_setup_failed' ||
+    code === 'user_creation_failed' ||
+    code === 'membership_creation_failed' ||
+    code === 'session_creation_failed' ||
+    code === 'session_lookup_failed' ||
+    code === 'database_error' ||
+    code === 'unexpected_error'
+  );
+}
+
+function getErrorName(error: unknown): string {
+  return error instanceof Error ? error.name : typeof error;
 }
 
 function inviteFromRow(row: InviteRow): SafeInvite {

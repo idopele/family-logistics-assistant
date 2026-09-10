@@ -1,4 +1,13 @@
-import { assertSameOriginMutation, bootstrapFirstOwner, buildSessionCookie, getDatabase, jsonResponse, safeAuthPayload } from '../authCore';
+import {
+  assertSameOriginMutation,
+  bootstrapFirstOwner,
+  buildSessionCookie,
+  getDatabase,
+  getSafeBootstrapFailureCode,
+  getSafeBootstrapFailureLog,
+  jsonResponse,
+  safeAuthPayload,
+} from '../authCore';
 
 type PagesContext = {
   request: Request;
@@ -45,8 +54,14 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       200,
       { 'Set-Cookie': buildSessionCookie(result.sessionToken, context.request, result.expiresAt) },
     );
-  } catch {
-    return jsonResponse({ error: 'Initial setup could not be completed.' }, 403);
+  } catch (error) {
+    const code = getSafeBootstrapFailureCode(error);
+
+    if (code !== 'invalid_bootstrap_token' && code !== 'bootstrap_closed' && code !== 'invalid_account_input') {
+      console.error('bootstrap failed', getSafeBootstrapFailureLog(error));
+    }
+
+    return jsonResponse({ error: 'Initial setup could not be completed.', code }, 403);
   }
 }
 
