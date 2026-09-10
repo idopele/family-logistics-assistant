@@ -114,7 +114,7 @@ Reminder migration can be applied from the Cloudflare dashboard: open the D1 dat
 
 Push notification migration can also be applied from the Cloudflare dashboard: open the D1 database, go to Console, paste the SQL from `migrations/0003_push_notifications.sql`, and run it against `family-logistics-db`.
 
-Authentication migration can be applied from the Cloudflare dashboard: open D1 -> `family-logistics-db` -> Console, paste the SQL from `migrations/0004_authentication_members.sql`, and run it once. This migration is additive and must not drop existing schedule, transportation, reminder, push subscription, or delivery tables.
+Authentication migration can be applied from the Cloudflare dashboard: open D1 -> `family-logistics-db` -> Console, paste the SQL from `migrations/0004_authentication_members.sql`, and run it once. This migration is additive and must not drop existing schedule, transportation, reminder, push subscription, or delivery tables. Apply migration `0004` exactly once: its `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS` statements are rerunnable, but SQLite/D1 `ALTER TABLE ... ADD COLUMN` does not have the same rerunnable behavior.
 
 ## Application Authentication
 

@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS workspaces (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('family')),
+  type TEXT NOT NULL CHECK (type IN ('family', 'sports_team')),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -78,6 +78,8 @@ CREATE TABLE IF NOT EXISTS user_schedule_member_links (
 );
 
 ALTER TABLE push_subscriptions ADD COLUMN user_id TEXT REFERENCES app_users(id);
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id);
 
 INSERT INTO workspaces (id, name, type, created_at, updated_at)
 VALUES ('default-family-workspace', 'Family', 'family', '2026-09-10T00:00:00.000Z', '2026-09-10T00:00:00.000Z')
