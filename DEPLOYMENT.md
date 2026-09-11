@@ -133,10 +133,12 @@ Password hashing:
 
 - Algorithm: PBKDF2 with SHA-256 through Web Crypto.
 - Format: `pbkdf2-sha256-v1$<iterations>$<salt>$<hash>`.
-- Iterations: `310000`.
+- Iterations: `100000`.
 - Salt: 16 cryptographically random bytes.
 - Hash length: 32 bytes.
 - Password policy: 10 to 256 characters. Spaces and symbols are allowed for password managers.
+
+Cloudflare Workers/Pages native Web Crypto PBKDF2 is capped at 100000 iterations. Stored password hashes are versioned and include their own iteration count, so verification reads the serialized count instead of assuming the current creation setting. This is an edge-runtime constraint; before the Logistics Assistant Platform expands into a broad public or multi-tenant launch, authentication should evaluate migration to a stronger Cloudflare-compatible password KDF or a managed identity system.
 
 Session policy:
 

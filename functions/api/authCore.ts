@@ -13,7 +13,7 @@ export type D1Database = {
 
 export type AuthRole = 'owner' | 'admin' | 'member' | 'viewer';
 export type AuthUserStatus = 'active' | 'disabled';
-export type WorkspaceType = 'family';
+export type WorkspaceType = 'family' | 'sports_team';
 export type BootstrapFailureCode =
   | 'invalid_bootstrap_token'
   | 'bootstrap_closed'
@@ -112,7 +112,8 @@ export const localSessionCookieName = 'family_session';
 export const sessionLifetimeDays = 30;
 export const inviteLifetimeDays = 7;
 const passwordHashVersion = 'pbkdf2-sha256-v1';
-const passwordIterations = 310_000;
+// Cloudflare Workers/Pages native WebCrypto PBKDF2 currently supports at most 100000 iterations.
+export const passwordIterations = 100_000;
 const passwordSaltBytes = 16;
 const passwordHashBytes = 32;
 const sessionTokenBytes = 32;

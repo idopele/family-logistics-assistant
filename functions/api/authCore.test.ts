@@ -16,6 +16,7 @@ import {
   minimumPasswordLength,
   normalizeEmail,
   parsePasswordHash,
+  passwordIterations,
   revokeAllSessionsForUser,
   revokeSession,
   safeAuthPayload,
@@ -23,6 +24,7 @@ import {
   sessionLifetimeDays,
   setUserStatus,
   verifyPassword,
+  type WorkspaceType,
 } from './authCore';
 import { onRequestPost as handleBootstrapRequest } from './auth/bootstrap';
 
@@ -32,12 +34,26 @@ describe('authCore password hashing', () => {
   it('stores passwords only as versioned salted hashes and verifies them', async () => {
     const firstHash = await hashPassword('correct horse battery');
     const secondHash = await hashPassword('correct horse battery');
+    const parsedHash = parsePasswordHash(firstHash);
 
     expect(firstHash).not.toBe('correct horse battery');
     expect(firstHash).not.toBe(secondHash);
-    expect(parsePasswordHash(firstHash)?.version).toBe('pbkdf2-sha256-v1');
+    expect(parsedHash?.version).toBe('pbkdf2-sha256-v1');
+    expect(parsedHash?.iterations).toBe(100_000);
     await expect(verifyPassword('correct horse battery', firstHash)).resolves.toBe(true);
     await expect(verifyPassword('wrong horse battery', firstHash)).resolves.toBe(false);
+  });
+
+  it('keeps the configured Cloudflare PBKDF2 iteration count at the supported ceiling', () => {
+    expect(passwordIterations).toBe(100_000);
+    expect(passwordIterations).toBeLessThanOrEqual(100_000);
+  });
+
+  it('uses the serialized iteration count when verifying stored password hashes', async () => {
+    const storedHash = await hashPassword('correct horse battery');
+    const tamperedIterationsHash = storedHash.replace('$100000$', '$100001$');
+
+    await expect(verifyPassword('correct horse battery', tamperedIterationsHash)).resolves.toBe(false);
   });
 
   it('normalizes email consistently', () => {
@@ -47,6 +63,12 @@ describe('authCore password hashing', () => {
   it('keeps the documented password length policy unchanged', () => {
     expect(minimumPasswordLength).toBe(10);
     expect(maximumPasswordLength).toBe(256);
+  });
+
+  it('keeps workspace types aligned with the platform migration foundation', () => {
+    const supportedWorkspaceTypes = ['family', 'sports_team'] satisfies WorkspaceType[];
+
+    expect(supportedWorkspaceTypes).toEqual(['family', 'sports_team']);
   });
 });
 
