@@ -29,7 +29,7 @@ export function LoginScreen({ onAuthenticated }: AuthScreenProps) {
         <AuthInput label={t('email')} type="email" value={email} onChange={setEmail} autoComplete="email" />
         <AuthInput label={t('password')} type="password" value={password} onChange={setPassword} autoComplete="current-password" />
         {error !== null ? <p className="auth-form__error">{error}</p> : null}
-        <button className="add-event-form__save" type="submit">{t('signIn')}</button>
+        <button className="add-event-form__save auth-form__submit" type="submit">{t('signIn')}</button>
       </form>
     </AuthShell>
   );
@@ -62,7 +62,7 @@ export function BootstrapOwnerScreen({ onAuthenticated }: AuthScreenProps) {
         <AuthInput label={t('password')} type="password" value={password} onChange={setPassword} autoComplete="new-password" help={t('passwordPolicy')} />
         <AuthInput label={t('bootstrapToken')} type="password" value={bootstrapToken} onChange={setBootstrapToken} autoComplete="one-time-code" />
         {error !== null ? <p className="auth-form__error">{error}</p> : null}
-        <button className="add-event-form__save" type="submit">{t('createFirstOwner')}</button>
+        <button className="add-event-form__save auth-form__submit" type="submit">{t('createFirstOwner')}</button>
       </form>
     </AuthShell>
   );
@@ -115,7 +115,7 @@ export function InviteAcceptScreen({ inviteToken, onAuthenticated }: AuthScreenP
         <AuthInput label={t('displayName')} value={displayName} onChange={setDisplayName} autoComplete="name" />
         <AuthInput label={t('password')} type="password" value={password} onChange={setPassword} autoComplete="new-password" help={t('passwordPolicy')} />
         {error !== null ? <p className="auth-form__error">{error}</p> : null}
-        <button className="add-event-form__save" type="submit">{t('acceptInvite')}</button>
+        <button className="add-event-form__save auth-form__submit" type="submit">{t('acceptInvite')}</button>
       </form>
     </AuthShell>
   );
@@ -127,7 +127,7 @@ function AuthShell({ title, children }: { title: string; children: ReactNode }) 
   return (
     <main className="auth-page" aria-labelledby="auth-title">
       <section className="auth-card">
-        <p>{t('appName')}</p>
+        <p className="auth-card__eyebrow">{t('appName')}</p>
         <h1 id="auth-title">{title}</h1>
         {children}
       </section>
@@ -151,9 +151,9 @@ function AuthInput({
   help?: string;
 }) {
   return (
-    <label className="form-field">
-      <span>{label}</span>
-      <input type={type} value={value} autoComplete={autoComplete} onChange={(event) => onChange(event.target.value)} />
+    <label className="form-field auth-form-field">
+      <span className="auth-form-field__label">{label}</span>
+      <input className="auth-form-field__input" type={type} value={value} autoComplete={autoComplete} onChange={(event) => onChange(event.target.value)} />
       {help !== undefined ? <small className="form-field__help">{help}</small> : null}
     </label>
   );

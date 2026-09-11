@@ -34,6 +34,16 @@
   --space-6: 1.5rem;
   --space-8: 2rem;
   --focus-ring: 0 0 0 0.18rem rgb(36 67 63 / 20%);
+  --auth-card-bg: #fffdf9;
+  --auth-card-border: #d8d2c8;
+  --auth-heading: #141b24;
+  --auth-text: #1d2430;
+  --auth-text-soft: #374151;
+  --auth-text-muted: #596579;
+  --auth-input-bg: #ffffff;
+  --auth-input-border: #c7c0b7;
+  --auth-input-placeholder: #6f7a8c;
+  --auth-input-focus-bg: #ffffff;
   color: var(--color-text);
   background: linear-gradient(180deg, #f7f5f1 0%, var(--color-bg) 100%);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -69,6 +79,16 @@
   --shadow-card: 0 0.75rem 1.65rem rgb(0 0 0 / 28%);
   --shadow-pop: 0 1.5rem 4rem rgb(0 0 0 / 42%);
   --focus-ring: 0 0 0 0.18rem rgb(147 213 202 / 28%);
+  --auth-card-bg: #263241;
+  --auth-card-border: #617087;
+  --auth-heading: #ffffff;
+  --auth-text: #f7fafc;
+  --auth-text-soft: #dbe5ef;
+  --auth-text-muted: #b8c5d6;
+  --auth-input-bg: #17212d;
+  --auth-input-border: #748399;
+  --auth-input-placeholder: #a8b5c7;
+  --auth-input-focus-bg: #1d2936;
   background: linear-gradient(180deg, #121c27 0%, var(--color-bg) 100%);
 }
 
@@ -116,20 +136,21 @@ summary:focus-visible {
   display: grid;
   gap: var(--space-4);
   width: min(100%, 28rem);
-  border: 1px solid rgb(255 255 255 / 74%);
+  border: 1px solid var(--auth-card-border);
   border-radius: var(--radius-xl);
-  background: rgb(255 253 249 / 90%);
+  background: var(--auth-card-bg);
   box-shadow: var(--shadow-pop);
+  color: var(--auth-text);
   padding: var(--space-5);
 }
 
-.auth-card p,
+.auth-card__eyebrow,
 .auth-card h1 {
   margin: 0;
 }
 
-.auth-card p {
-  color: var(--color-text-soft);
+.auth-card__eyebrow {
+  color: var(--auth-text-soft);
   font-size: 0.86rem;
   font-weight: 950;
   letter-spacing: 0.06em;
@@ -137,7 +158,7 @@ summary:focus-visible {
 }
 
 .auth-card h1 {
-  color: var(--color-text);
+  color: var(--auth-heading);
   font-size: clamp(1.5rem, 8vw, 2.2rem);
   font-weight: 950;
   line-height: 1.1;
@@ -163,9 +184,60 @@ summary:focus-visible {
 }
 
 .auth-form__hint {
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-soft);
-  color: var(--color-text-soft);
+  border: 1px solid var(--auth-input-border);
+  background: var(--auth-input-bg);
+  color: var(--auth-text-soft);
+}
+
+.auth-form-field {
+  color: var(--auth-text);
+}
+
+.auth-form-field__label,
+.auth-form-field .form-field__help {
+  color: var(--auth-text-soft);
+}
+
+.auth-form-field__label {
+  font-size: 0.88rem;
+  font-weight: 950;
+}
+
+.auth-form-field .form-field__help {
+  font-weight: 850;
+}
+
+.auth-form-field__input {
+  border-color: var(--auth-input-border);
+  background: var(--auth-input-bg);
+  color: var(--auth-text);
+  caret-color: var(--auth-text);
+}
+
+.auth-form-field__input::placeholder {
+  color: var(--auth-input-placeholder);
+  opacity: 1;
+}
+
+.auth-form-field__input:hover {
+  border-color: var(--color-border-strong);
+}
+
+.auth-form-field__input:focus {
+  border-color: var(--color-primary);
+  background: var(--auth-input-focus-bg);
+}
+
+.auth-form-field__input:-webkit-autofill,
+.auth-form-field__input:-webkit-autofill:hover,
+.auth-form-field__input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--auth-text);
+  box-shadow: 0 0 0 1000px var(--auth-input-bg) inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+.auth-form__submit {
+  color: #fff;
 }
 
 .dashboard-page {
@@ -1248,6 +1320,35 @@ summary:focus-visible {
 :root[data-theme='dark'] .weekday-option {
   background: var(--color-bg-soft);
   color: var(--color-text);
+}
+
+:root[data-theme='dark'] .auth-card {
+  border-color: var(--auth-card-border);
+  background: var(--auth-card-bg);
+  color: var(--auth-text);
+}
+
+:root[data-theme='dark'] .auth-card h1 {
+  color: var(--auth-heading);
+}
+
+:root[data-theme='dark'] .auth-card__eyebrow,
+:root[data-theme='dark'] .auth-form-field__label,
+:root[data-theme='dark'] .auth-form-field .form-field__help,
+:root[data-theme='dark'] .auth-form__hint {
+  color: var(--auth-text-soft);
+}
+
+:root[data-theme='dark'] .auth-form-field__input {
+  border-color: var(--auth-input-border);
+  background: var(--auth-input-bg);
+  color: var(--auth-text);
+  caret-color: var(--auth-text);
+}
+
+:root[data-theme='dark'] .auth-form-field__input:focus {
+  border-color: var(--color-primary);
+  background: var(--auth-input-focus-bg);
 }
 
 .dialog-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: var(--space-3); background: rgb(21 27 37 / 44%); backdrop-filter: blur(6px); }
