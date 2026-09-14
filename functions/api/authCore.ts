@@ -1,3 +1,5 @@
+import type { AuthorizationContext, PermissionScope } from '../../src/models';
+
 type D1Value = string | number | null;
 
 export type D1PreparedStatement = {
@@ -120,6 +122,17 @@ const sessionTokenBytes = 32;
 const inviteTokenBytes = 32;
 export const minimumPasswordLength = 10;
 export const maximumPasswordLength = 256;
+
+const allPermissionScopes: PermissionScope[] = [
+  'view_schedule',
+  'edit_schedule',
+  'view_transportation',
+  'edit_transportation',
+  'view_contacts',
+  'receive_notifications',
+  'manage_users',
+  'manage_shared_views',
+];
 
 export function getDatabase(env: AuthEnv): D1Database | null {
   return env.FAMILY_DB ?? null;
@@ -437,19 +450,22 @@ export async function acceptInvite({
 
   assertValidAccountInput(displayName, invite.email, password);
 
-  let user = await readUserByNormalizedEmail(db, normalizeEmail(invite.email));
+  const existingUser = await readUserByNormalizedEmail(db, normalizeEmail(invite.email));
+  let userId: string;
 
-  if (user === null) {
-    user = await createUser(db, { email: invite.email, displayName, password, nowIso });
-  } else if (user.status !== 'active') {
+  if (existingUser === null) {
+    userId = (await createUser(db, { email: invite.email, displayName, password, nowIso })).id;
+  } else if (existingUser.status !== 'active') {
     throw new AuthError('invalid_invite');
+  } else {
+    userId = existingUser.id;
   }
 
-  await createMembership(db, invite.workspaceId, user.id, invite.role, nowIso);
+  await createMembership(db, invite.workspaceId, userId, invite.role, nowIso);
   await db.prepare('UPDATE auth_invites SET accepted_at = ? WHERE id = ? AND accepted_at IS NULL').bind(nowIso, invite.id).run();
 
-  const session = await createSession(db, user.id, invite.workspaceId, nowIso);
-  const auth = await readSafeSessionByUserWorkspace(db, user.id, invite.workspaceId);
+  const session = await createSession(db, userId, invite.workspaceId, nowIso);
+  const auth = await readSafeSessionByUserWorkspace(db, userId, invite.workspaceId);
 
   if (auth === null) {
     throw new Error('Invite session unavailable.');
@@ -580,22 +596,33 @@ export function safeAuthPayload(auth: AuthenticatedSession) {
     user: auth.user,
     workspace: auth.workspace,
     membership: auth.membership,
+    authorization: getRoleAuthorizationContext(auth),
   };
 }
 
 export class AuthError extends Error {
-  constructor(public readonly code: string) {
+  readonly code: string;
+
+  constructor(code: string) {
     super(code);
+    this.code = code;
   }
 }
 
 export class BootstrapDiagnosticError extends Error {
+  readonly code: BootstrapFailureCode;
+  readonly stage: string;
+  readonly causeValue?: unknown;
+
   constructor(
-    public readonly code: BootstrapFailureCode,
-    public readonly stage: string,
-    public readonly causeValue?: unknown,
+    code: BootstrapFailureCode,
+    stage: string,
+    causeValue?: unknown,
   ) {
     super(code);
+    this.code = code;
+    this.stage = stage;
+    this.causeValue = causeValue;
   }
 }
 
@@ -778,6 +805,30 @@ function isBootstrapFailureCode(code: string): code is BootstrapFailureCode {
 
 function getErrorName(error: unknown): string {
   return error instanceof Error ? error.name : typeof error;
+}
+
+function getRoleAuthorizationContext(auth: AuthenticatedSession): AuthorizationContext {
+  if (auth.user.status !== 'active' || auth.membership.status !== 'active') {
+    return {
+      fullAccess: false,
+      permissions: [],
+      scheduleScope: { allMembers: false, memberIds: [], allCategories: false, categories: [] },
+    };
+  }
+
+  if (auth.membership.role === 'owner' || auth.membership.role === 'admin') {
+    return {
+      fullAccess: true,
+      permissions: allPermissionScopes,
+      scheduleScope: { allMembers: true, memberIds: [], allCategories: true, categories: [] },
+    };
+  }
+
+  return {
+    fullAccess: false,
+    permissions: [],
+    scheduleScope: { allMembers: false, memberIds: [], allCategories: false, categories: [] },
+  };
 }
 
 function inviteFromRow(row: InviteRow): SafeInvite {

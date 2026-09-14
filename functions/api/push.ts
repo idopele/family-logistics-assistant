@@ -4,11 +4,13 @@ import { createPushSubscriptionRecord, isPushSubscriptionInput, type PushSubscri
 import { sendWebPushNotification, type WebPushConfig, type WebPushSendResult } from '../../src/services/webPush';
 import { associatePushSubscriptionWithUser } from './authCore';
 import { requireAppSession } from './authGuard';
+import { hasPermission, readAuthorizationContext } from './permissions';
 
 type D1Value = string | number | null;
 
 type D1PreparedStatement = {
   bind: (...values: D1Value[]) => D1PreparedStatement;
+  all: <T = unknown>() => Promise<{ results?: T[] }>;
   first: <T = unknown>() => Promise<T | null>;
   run: () => Promise<unknown>;
 };
@@ -59,6 +61,10 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
     return jsonResponse({ error: 'Push notifications are not configured.' }, 503);
   }
 
+  if (context.env.FAMILY_DB !== undefined && !hasPermission(await readAuthorizationContext(context.env.FAMILY_DB, guard.auth), 'receive_notifications')) {
+    return jsonResponse({ error: 'Not authorized.' }, 403);
+  }
+
   return jsonResponse({ publicKey: context.env.VAPID_PUBLIC_KEY });
 }
 
@@ -73,6 +79,10 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
 
   if (db === undefined) {
     return jsonResponse({ error: 'Shared data is not configured.' }, 503);
+  }
+
+  if (!hasPermission(await readAuthorizationContext(db, guard.auth), 'receive_notifications')) {
+    return jsonResponse({ error: 'Not authorized.' }, 403);
   }
 
   let body: unknown;

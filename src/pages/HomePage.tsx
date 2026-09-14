@@ -9,7 +9,7 @@ import { FamilyActionCenter } from '../components/FamilyActionCenter';
 import { OccurrenceEditDialog } from '../components/OccurrenceEditDialog';
 import { PwaInstallControl } from '../components/PwaInstallControl';
 import { ScheduleDateFilters } from '../components/ScheduleDateFilters';
-import { ScheduleFilters, type CategoryFilter, type ChildFilter } from '../components/ScheduleFilters';
+import { ScheduleFilters, categoryFilterValues, type CategoryFilter, type ChildFilter } from '../components/ScheduleFilters';
 import { TransportationConflicts } from '../components/TransportationConflicts';
 import { TransportationDialog } from '../components/TransportationDialog';
 import { UiPreferenceControls } from '../components/UiPreferenceControls';
@@ -17,7 +17,7 @@ import { WeekNavigation } from '../components/WeekNavigation';
 import { children as seedChildren } from '../data/children';
 import { eventExceptions } from '../data/eventExceptions';
 import { events } from '../data/events';
-import type { Child, Event, EventException, EventReminder, ScheduleOccurrence, TransportationPlan } from '../models';
+import type { Child, Event, EventCategory, EventException, EventReminder, ScheduleOccurrence, TransportationPlan } from '../models';
 import { deleteCustomEvent, updateCustomEvent } from '../services/localEventStorage';
 import {
   deleteCustomEventExceptionsForEvent,
@@ -60,6 +60,7 @@ import {
 import { detectTransportationConflicts } from '../services/transportationConflictDetection';
 import { buildFamilyActionCenterData } from '../services/familyActionCenter';
 import { registerFamilyServiceWorker } from '../services/pushNotifications';
+import { canEditEvent, hasPermission, isEventAuthorized } from '../services/authorization';
 import { useUiPreferences } from '../i18n';
 import type { AuthSession } from '../services/authClient';
 import { addDays, isValidDate } from '../utils/dateTime';
@@ -118,18 +119,52 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
   const [customChildren, setCustomChildren] = useState<Child[]>(() => localMigrationData.customChildren);
   const [sharedDataStatus, setSharedDataStatus] = useState<SharedDataStatus>('syncing');
   const [sharedDataInitialized, setSharedDataInitialized] = useState(false);
+  const [authorization, setAuthorization] = useState(authSession?.authorization ?? null);
   const [isMigrationDismissed, setIsMigrationDismissed] = useState(false);
   const [isImportingLocalData, setIsImportingLocalData] = useState(false);
   const [sharedDataError, setSharedDataError] = useState<string | null>(null);
+  const effectiveAuthorization = authorization ?? authSession?.authorization ?? null;
+  const canViewSchedule = authSession === undefined || hasPermission(effectiveAuthorization, 'view_schedule');
+  const canEditSchedule = authSession === undefined || hasPermission(effectiveAuthorization, 'edit_schedule');
+  const canViewTransportation = authSession === undefined || hasPermission(effectiveAuthorization, 'view_transportation');
+  const canEditTransportation = authSession === undefined || hasPermission(effectiveAuthorization, 'edit_transportation');
+  const canReceiveNotifications = authSession === undefined || hasPermission(effectiveAuthorization, 'receive_notifications');
+  const canManageFamilyMembers = authSession === undefined || hasPermission(effectiveAuthorization, 'manage_users');
   const weekDays = useMemo(() => getWorkWeekDays(weekStartDate, language), [language, weekStartDate]);
   const visibleWeekDays = useMemo(
     () => getVisibleWeekDays(weekDays, weekdayFilter, specificDateFilter, language),
     [language, specificDateFilter, weekDays, weekdayFilter],
   );
-  const activeChildren = useMemo(() => [...seedChildren, ...customChildren].filter((child) => child.isActive), [customChildren]);
+  const activeChildren = useMemo(
+    () =>
+      [...seedChildren, ...customChildren].filter((child) => {
+        if (!child.isActive) {
+          return false;
+        }
+
+        if (effectiveAuthorization === null || effectiveAuthorization.fullAccess) {
+          return true;
+        }
+
+        return (
+          canViewSchedule &&
+          (effectiveAuthorization.scheduleScope.allMembers || effectiveAuthorization.scheduleScope.memberIds.includes(child.id))
+        );
+      }),
+    [canViewSchedule, customChildren, effectiveAuthorization],
+  );
   const childrenById = useMemo(() => new Map(activeChildren.map((child) => [child.id, child])), [activeChildren]);
-  const allEvents = useMemo(() => [...events, ...customEvents], [customEvents]);
-  const allEventExceptions = useMemo(() => [...eventExceptions, ...customEventExceptions], [customEventExceptions]);
+  const rawAllEvents = useMemo(() => [...events, ...customEvents], [customEvents]);
+  const rawAllEventExceptions = useMemo(() => [...eventExceptions, ...customEventExceptions], [customEventExceptions]);
+  const allEvents = useMemo(
+    () => rawAllEvents.filter((event) => isEventAuthorized(effectiveAuthorization, event)),
+    [effectiveAuthorization, rawAllEvents],
+  );
+  const visibleEventIds = useMemo(() => new Set(allEvents.map((event) => event.id)), [allEvents]);
+  const allEventExceptions = useMemo(
+    () => rawAllEventExceptions.filter((exception) => visibleEventIds.has(exception.eventId)),
+    [rawAllEventExceptions, visibleEventIds],
+  );
   const editableEventIds = useMemo(() => new Set(customEvents.map((event) => event.id)), [customEvents]);
   const customRecurringEventIds = useMemo(
     () => new Set(customEvents.filter((event) => event.recurrence !== null).map((event) => event.id)),
@@ -145,31 +180,39 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
   );
   const isSelectedCustomOneTimeEvent = selectedCustomEvent !== null && selectedCustomEvent.recurrence === null;
   const isSelectedCustomRecurringEvent = selectedCustomEvent !== null && selectedCustomEvent.recurrence !== null;
+  const visibleTransportationPlans = useMemo(
+    () => (canViewTransportation ? transportationPlans.filter((plan) => visibleEventIds.has(plan.eventId)) : []),
+    [canViewTransportation, transportationPlans, visibleEventIds],
+  );
+  const visibleEventReminders = useMemo(
+    () => (canReceiveNotifications ? eventReminders.filter((reminder) => visibleEventIds.has(reminder.eventId)) : []),
+    [canReceiveNotifications, eventReminders, visibleEventIds],
+  );
   const transportationDialogPlan = useMemo(
     () =>
       transportationOccurrence === null
         ? null
-        : getTransportationPlanForScheduleOccurrence(transportationPlans, transportationOccurrence),
-    [transportationOccurrence, transportationPlans],
+        : getTransportationPlanForScheduleOccurrence(visibleTransportationPlans, transportationOccurrence),
+    [transportationOccurrence, visibleTransportationPlans],
   );
   const selectedTransportationPlan = useMemo(
-    () => (selectedOccurrence === null ? null : getTransportationPlanForScheduleOccurrence(transportationPlans, selectedOccurrence)),
-    [selectedOccurrence, transportationPlans],
+    () => (selectedOccurrence === null ? null : getTransportationPlanForScheduleOccurrence(visibleTransportationPlans, selectedOccurrence)),
+    [selectedOccurrence, visibleTransportationPlans],
   );
   const selectedReminder = useMemo(
-    () => (selectedOccurrence === null ? null : getReminderForOccurrence(eventReminders, selectedOccurrence)),
-    [eventReminders, selectedOccurrence],
+    () => (selectedOccurrence === null ? null : getReminderForOccurrence(visibleEventReminders, selectedOccurrence)),
+    [selectedOccurrence, visibleEventReminders],
   );
   const transportationPlansByOccurrence = useMemo(() => {
-    return new Map(transportationPlans.map((plan) => [getTransportationKey(plan.eventId, plan.occurrenceDate), plan]));
-  }, [transportationPlans]);
+    return new Map(visibleTransportationPlans.map((plan) => [getTransportationKey(plan.eventId, plan.occurrenceDate), plan]));
+  }, [visibleTransportationPlans]);
   const remindersByOccurrence = useMemo(() => {
     return new Map(
-      eventReminders
+      visibleEventReminders
         .filter((reminder) => reminder.enabled)
         .map((reminder) => [getTransportationKey(reminder.eventId, reminder.occurrenceDate), reminder]),
     );
-  }, [eventReminders]);
+  }, [visibleEventReminders]);
   const confirmationEvent = useMemo(() => {
     if (pendingConfirmation?.type !== 'deleteEvent' && pendingConfirmation?.type !== 'deleteSeries') {
       return null;
@@ -191,23 +234,39 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
     const weekEndDate = weekDays[weekDays.length - 1]?.date ?? weekStartDate;
 
     return detectTransportationConflicts(
-      transportationPlans,
+      visibleTransportationPlans,
       transportationConflictOccurrences,
       activeChildren,
       weekStartDate,
       weekEndDate,
     );
-  }, [activeChildren, transportationConflictOccurrences, transportationPlans, weekDays, weekStartDate]);
+  }, [activeChildren, transportationConflictOccurrences, visibleTransportationPlans, weekDays, weekStartDate]);
   const weekOccurrences = useMemo(() => {
     return weekAllOccurrences.filter((occurrence) => {
       const matchesChild = childFilter === 'all' || occurrence.childId === childFilter;
       const matchesCategory = categoryFilter === 'all' || occurrence.category === categoryFilter;
       const matchesTransportation =
-        !showOnlyWithTransportation || getTransportationPlanForScheduleOccurrence(transportationPlans, occurrence) !== null;
+        !showOnlyWithTransportation || getTransportationPlanForScheduleOccurrence(visibleTransportationPlans, occurrence) !== null;
 
       return matchesChild && matchesCategory && matchesTransportation;
     });
-  }, [categoryFilter, childFilter, showOnlyWithTransportation, transportationPlans, weekAllOccurrences]);
+  }, [categoryFilter, childFilter, showOnlyWithTransportation, visibleTransportationPlans, weekAllOccurrences]);
+  const availableCategoryFilters = useMemo<CategoryFilter[]>(() => {
+    if (effectiveAuthorization === null || effectiveAuthorization.fullAccess || effectiveAuthorization.scheduleScope.allCategories) {
+      return categoryFilterValues;
+    }
+
+    return [
+      'all',
+      ...categoryFilterValues.filter((category) =>
+        category !== 'all' && effectiveAuthorization.scheduleScope.categories.includes(category),
+      ),
+    ];
+  }, [effectiveAuthorization]);
+  const addEventCategories = useMemo<EventCategory[]>(
+    () => availableCategoryFilters.filter((category) => category !== 'all') as EventCategory[],
+    [availableCategoryFilters],
+  );
   const categoryRankOccurrences = useMemo(() => {
     if (specificDateFilter !== '' && isValidDate(specificDateFilter)) {
       return weekAllOccurrences.filter((occurrence) => occurrence.date === specificDateFilter);
@@ -217,7 +276,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
   }, [specificDateFilter, weekAllOccurrences]);
   const weeklyTransportationSummary = useMemo(() => {
     const occurrenceKeys = new Set(weekAllOccurrences.map((occurrence) => getTransportationKey(occurrence.eventId, occurrence.date)));
-    const plansInWeek = transportationPlans.filter((plan) => occurrenceKeys.has(getTransportationKey(plan.eventId, plan.occurrenceDate)));
+    const plansInWeek = visibleTransportationPlans.filter((plan) => occurrenceKeys.has(getTransportationKey(plan.eventId, plan.occurrenceDate)));
     const outboundCount = plansInWeek.filter((plan) => plan.outbound !== null).length;
     const returnCount = plansInWeek.filter((plan) => plan.returnTrip !== null).length;
 
@@ -226,19 +285,19 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
       returnCount,
       totalLegs: outboundCount + returnCount,
     };
-  }, [transportationPlans, weekAllOccurrences]);
+  }, [visibleTransportationPlans, weekAllOccurrences]);
   const familyActionCenterData = useMemo(
     () =>
       buildFamilyActionCenterData({
         events: allEvents,
         exceptions: allEventExceptions,
-        transportationPlans,
+        transportationPlans: visibleTransportationPlans,
         children: activeChildren,
         today,
         currentTime,
         language,
       }),
-    [activeChildren, allEventExceptions, allEvents, currentTime, language, today, transportationPlans],
+    [activeChildren, allEventExceptions, allEvents, currentTime, language, today, visibleTransportationPlans],
   );
 
   const shouldShowMigrationNotice =
@@ -257,6 +316,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
       setCustomEventExceptions(sharedState.eventExceptions);
       setTransportationPlans(sharedState.transportationPlans);
       setEventReminders(sharedState.eventReminders);
+      setAuthorization(sharedState.authorization ?? authSession?.authorization ?? null);
       setSharedDataInitialized(sharedState.initialized);
       setSharedDataStatus('shared');
       setSharedDataError(null);
@@ -268,7 +328,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
 
       return null;
     }
-  }, [t]);
+  }, [authSession?.authorization, t]);
 
   useEffect(() => {
     void refreshSharedData(true);
@@ -277,6 +337,18 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
   useEffect(() => {
     void registerFamilyServiceWorker();
   }, []);
+
+  useEffect(() => {
+    if (childFilter !== 'all' && !activeChildren.some((child) => child.id === childFilter)) {
+      setChildFilter('all');
+    }
+  }, [activeChildren, childFilter]);
+
+  useEffect(() => {
+    if (!availableCategoryFilters.includes(categoryFilter)) {
+      setCategoryFilter('all');
+    }
+  }, [availableCategoryFilters, categoryFilter]);
 
   useEffect(() => {
     if (deepLinkProcessedRef.current || sharedDataStatus === 'syncing') {
@@ -291,10 +363,11 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
     }
 
     deepLinkProcessedRef.current = true;
+    const rawOccurrence = resolveDeepLinkedOccurrence(rawAllEvents, rawAllEventExceptions, deepLink.eventId, deepLink.date);
     const occurrence = resolveDeepLinkedOccurrence(allEvents, allEventExceptions, deepLink.eventId, deepLink.date);
 
     if (occurrence === null) {
-      setDeepLinkMessage(t('requestedEventNotFound'));
+      setDeepLinkMessage(rawOccurrence === null ? t('requestedEventNotFound') : t('noPermissionToViewEvent'));
       clearEventDeepLinkParams();
       return;
     }
@@ -303,7 +376,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
     setSpecificDateFilter(deepLink.date);
     setSelectedOccurrence(occurrence);
     setDeepLinkMessage(null);
-  }, [allEventExceptions, allEvents, sharedDataStatus, t]);
+  }, [allEventExceptions, allEvents, rawAllEventExceptions, rawAllEvents, sharedDataStatus, t]);
   useEffect(() => {
     function handleWindowFocus() {
       void refreshSharedData();
@@ -426,6 +499,10 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
   }
 
   function handleOpenTransportation() {
+    if (!canEditTransportation) {
+      return;
+    }
+
     setTransportationOccurrence(selectedOccurrence);
     setSelectedOccurrence(null);
   }
@@ -497,7 +574,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
   }
 
   async function handleReminderChange(minutesBefore: ReminderMinutesBefore | null) {
-    if (selectedOccurrence === null) {
+    if (selectedOccurrence === null || !canReceiveNotifications) {
       return;
     }
 
@@ -657,12 +734,16 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
             <AppInfoButton authSession={authSession} onLogout={onLogout} />
             <SharedDataStatusIndicator status={sharedDataStatus} />
             <div className="dashboard-actions">
-              <button className="add-event-button" type="button" onClick={() => setIsAddEventOpen(true)}>
-                {t('addEvent')}
-              </button>
-              <button className="add-child-button" type="button" onClick={() => setIsAddChildOpen(true)}>
-                {t('addChild')}
-              </button>
+              {canEditSchedule ? (
+                <button className="add-event-button" type="button" onClick={() => setIsAddEventOpen(true)}>
+                  {t('addEvent')}
+                </button>
+              ) : null}
+              {canManageFamilyMembers ? (
+                <button className="add-child-button" type="button" onClick={() => setIsAddChildOpen(true)}>
+                  {t('addChild')}
+                </button>
+              ) : null}
             </div>
           </div>
         </div>
@@ -671,6 +752,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
           children={activeChildren}
           childFilter={childFilter}
           categoryFilter={categoryFilter}
+          availableCategoryFilters={availableCategoryFilters}
           categoryRankOccurrences={categoryRankOccurrences}
           showOnlyWithTransportation={showOnlyWithTransportation}
           onChildFilterChange={setChildFilter}
@@ -701,6 +783,12 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
                 {t('notNow')}
               </button>
             </div>
+          </section>
+        ) : null}
+        {!canViewSchedule && sharedDataStatus !== 'syncing' ? (
+          <section className="shared-data-message" data-status="issue">
+            <span>{t('accessNotConfigured')}</span>
+            <span>{t('accessNotConfiguredHelp')}</span>
           </section>
         ) : null}
         {weeklyTransportationSummary.totalLegs > 0 ? (
@@ -755,12 +843,14 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
       <AddEventDialog
         isOpen={isAddEventOpen}
         children={activeChildren}
+        availableCategories={addEventCategories}
         onClose={() => setIsAddEventOpen(false)}
         onSave={handleSaveCustomEvent}
       />
       <AddEventDialog
         isOpen={eventToEdit !== null}
         children={activeChildren}
+        availableCategories={addEventCategories}
         eventToEdit={eventToEdit}
         onClose={() => setEventToEdit(null)}
         onSave={handleSaveEditedEvent}
@@ -788,12 +878,12 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
         child={selectedOccurrence === null ? null : childrenById.get(selectedOccurrence.childId) ?? null}
         transportationPlan={selectedTransportationPlan}
         reminder={selectedReminder}
-        canEditEvent={isSelectedCustomOneTimeEvent}
-        canEditOccurrence={selectedEvent !== null && !isSelectedCustomOneTimeEvent}
-        canEditSeries={isSelectedCustomRecurringEvent}
-        canDeleteEvent={isSelectedCustomOneTimeEvent}
-        canCancelOccurrence={selectedEvent?.recurrence !== null && selectedEvent !== null}
-        canDeleteSeries={isSelectedCustomRecurringEvent}
+        canEditEvent={selectedEvent !== null && isSelectedCustomOneTimeEvent && canEditEvent(effectiveAuthorization, selectedEvent)}
+        canEditOccurrence={selectedEvent !== null && !isSelectedCustomOneTimeEvent && canEditEvent(effectiveAuthorization, selectedEvent)}
+        canEditSeries={selectedEvent !== null && isSelectedCustomRecurringEvent && canEditEvent(effectiveAuthorization, selectedEvent)}
+        canDeleteEvent={selectedEvent !== null && isSelectedCustomOneTimeEvent && canEditEvent(effectiveAuthorization, selectedEvent)}
+        canCancelOccurrence={selectedEvent?.recurrence !== null && selectedEvent !== null && canEditEvent(effectiveAuthorization, selectedEvent)}
+        canDeleteSeries={selectedEvent !== null && isSelectedCustomRecurringEvent && canEditEvent(effectiveAuthorization, selectedEvent)}
         onClose={handleCloseSelectedOccurrence}
         onEdit={handleEditSelectedEvent}
         onDelete={handleDeleteSelectedEvent}

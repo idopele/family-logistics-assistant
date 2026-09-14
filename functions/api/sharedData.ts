@@ -8,6 +8,14 @@ import type {
   TransportationLeg,
   TransportationPlan,
 } from '../../src/models';
+import { events as seedEvents } from '../../src/data/events';
+import {
+  canAccessEvent,
+  hasPermission,
+  isEventInScheduleScope,
+  readAuthorizationContext,
+} from './permissions';
+import type { AuthenticatedSession } from './authCore';
 
 type D1Value = string | number | null;
 
@@ -40,6 +48,7 @@ export type SharedFamilyState = {
   eventExceptions: EventException[];
   transportationPlans: TransportationPlan[];
   eventReminders: EventReminder[];
+  authorization?: Awaited<ReturnType<typeof readAuthorizationContext>>;
   initialized: boolean;
 };
 
@@ -83,7 +92,7 @@ const eventCategories: EventCategory[] = [
   'other',
 ];
 
-export async function handleGetSharedState(context: PagesContext): Promise<Response> {
+export async function handleGetSharedState(context: PagesContext, auth?: AuthenticatedSession): Promise<Response> {
   const db = getDatabase(context);
 
   if (db === null) {
@@ -91,21 +100,26 @@ export async function handleGetSharedState(context: PagesContext): Promise<Respo
   }
 
   try {
-    const [children, events, exceptions, transportationPlans, eventReminders, initialized] = await Promise.all([
+    const [children, events, exceptions, transportationPlans, eventReminders, initialized, authorization] = await Promise.all([
       readPayloadRows<Child>(db, 'SELECT payload FROM custom_children ORDER BY id', isChild),
       readPayloadRows<Event>(db, 'SELECT payload FROM custom_events ORDER BY id', isEvent),
       readPayloadRows<EventException>(db, 'SELECT payload FROM event_exceptions ORDER BY event_id, occurrence_date', isEventException),
       readPayloadRows<TransportationPlan>(db, 'SELECT payload FROM transportation_plans ORDER BY occurrence_date, event_id', isTransportationPlan),
       readEventReminderRows(db),
       readInitializedFlag(db),
+      auth === undefined ? Promise.resolve(null) : readAuthorizationContext(db, auth),
     ]);
+    const visibleState = authorization === null
+      ? { children, events, exceptions, transportationPlans, eventReminders }
+      : filterSharedStateForAuthorization({ children, events, exceptions, transportationPlans, eventReminders }, authorization);
 
     return jsonResponse({
-      customChildren: children,
-      customEvents: events,
-      eventExceptions: exceptions,
-      transportationPlans,
-      eventReminders,
+      customChildren: visibleState.children,
+      customEvents: visibleState.events,
+      eventExceptions: visibleState.exceptions,
+      transportationPlans: visibleState.transportationPlans,
+      eventReminders: visibleState.eventReminders,
+      authorization: authorization ?? undefined,
       initialized,
     });
   } catch {
@@ -113,7 +127,7 @@ export async function handleGetSharedState(context: PagesContext): Promise<Respo
   }
 }
 
-export async function handleMutateSharedState(context: PagesContext): Promise<Response> {
+export async function handleMutateSharedState(context: PagesContext, auth?: AuthenticatedSession): Promise<Response> {
   const db = getDatabase(context);
 
   if (db === null) {
@@ -141,12 +155,57 @@ export async function handleMutateSharedState(context: PagesContext): Promise<Re
   }
 
   try {
+    if (auth !== undefined && !(await canApplyMutation(db, auth, mutation))) {
+      return jsonResponse({ error: 'Not authorized.' }, 403);
+    }
+
     await applyMutation(db, mutation);
 
     return jsonResponse({ ok: true });
   } catch {
     return jsonResponse({ error: 'Could not save shared family data.' }, 500);
   }
+}
+
+export function filterSharedStateForAuthorization(
+  state: {
+    children: Child[];
+    events: Event[];
+    exceptions: EventException[];
+    transportationPlans: TransportationPlan[];
+    eventReminders: EventReminder[];
+  },
+  authorization: NonNullable<SharedFamilyState['authorization']>,
+) {
+  if (authorization.fullAccess) {
+    return state;
+  }
+
+  if (!hasPermission(authorization, 'view_schedule')) {
+    return { children: [], events: [], exceptions: [], transportationPlans: [], eventReminders: [] };
+  }
+
+  const visibleCustomEvents = state.events.filter((event) => isEventInScheduleScope(authorization, event));
+  const visibleEventIds = new Set([
+    ...seedEvents.filter((event) => isEventInScheduleScope(authorization, event)).map((event) => event.id),
+    ...visibleCustomEvents.map((event) => event.id),
+  ]);
+  const visibleMemberIds = new Set([
+    ...visibleCustomEvents.map((event) => event.childId),
+    ...authorization.scheduleScope.memberIds,
+  ]);
+
+  return {
+    children: state.children.filter((child) => authorization.scheduleScope.allMembers || visibleMemberIds.has(child.id)),
+    events: visibleCustomEvents,
+    exceptions: state.exceptions.filter((exception) => visibleEventIds.has(exception.eventId)),
+    transportationPlans: hasPermission(authorization, 'view_transportation')
+      ? state.transportationPlans.filter((plan) => visibleEventIds.has(plan.eventId))
+      : [],
+    eventReminders: hasPermission(authorization, 'receive_notifications')
+      ? state.eventReminders.filter((reminder) => visibleEventIds.has(reminder.eventId))
+      : [],
+  };
 }
 
 export function parseSharedFamilyState(value: unknown): SharedFamilyState | null {
@@ -380,6 +439,68 @@ function parseMutationRequest(value: unknown): MutationRequest | null {
       return isImportPayload(request.payload) ? { action: request.action, payload: request.payload } : null;
     default:
       return null;
+  }
+}
+
+async function canApplyMutation(db: D1Database, auth: AuthenticatedSession, mutation: MutationRequest): Promise<boolean> {
+  const authorization = await readAuthorizationContext(db, auth);
+
+  if (authorization.fullAccess) {
+    return true;
+  }
+
+  switch (mutation.action) {
+    case 'upsertChild':
+    case 'deleteChild':
+    case 'importLocalData':
+      return false;
+    case 'upsertEvent':
+      return canAccessEvent(authorization, mutation.payload, 'edit_schedule');
+    case 'deleteEvent': {
+      const event = await readKnownEventById(db, mutation.payload.id);
+
+      return event !== null && canAccessEvent(authorization, event, 'edit_schedule');
+    }
+    case 'upsertEventException':
+    case 'deleteEventException': {
+      const event = await readKnownEventById(db, mutation.payload.eventId);
+
+      return event !== null && canAccessEvent(authorization, event, 'edit_schedule');
+    }
+    case 'upsertTransportationPlan':
+    case 'deleteTransportationPlan': {
+      const event = await readKnownEventById(db, mutation.payload.eventId);
+
+      return event !== null && canAccessEvent(authorization, event, 'edit_transportation');
+    }
+    case 'upsertEventReminder':
+    case 'deleteEventReminder': {
+      const event = await readKnownEventById(db, mutation.payload.eventId);
+
+      return event !== null && canAccessEvent(authorization, event, 'receive_notifications');
+    }
+  }
+}
+
+async function readKnownEventById(db: D1Database, eventId: string): Promise<Event | null> {
+  const seedEvent = seedEvents.find((event) => event.id === eventId);
+
+  if (seedEvent !== undefined) {
+    return seedEvent;
+  }
+
+  const row = await db.prepare('SELECT payload FROM custom_events WHERE id = ?').bind(eventId).first<StoredRow>();
+
+  if (row === null) {
+    return null;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(row.payload);
+
+    return isEvent(parsed) ? parsed : null;
+  } catch {
+    return null;
   }
 }
 

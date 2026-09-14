@@ -1,3 +1,6 @@
+import type { AuthorizationContext, EventCategory, PermissionScope } from '../models';
+import { isAuthorizationContext } from './authorization';
+
 export type AuthRole = 'owner' | 'admin' | 'member' | 'viewer';
 export type AuthUserStatus = 'active' | 'disabled';
 
@@ -12,13 +15,14 @@ export interface AuthSession {
   workspace: {
     id: string;
     name: string;
-    type: 'family';
+    type: 'family' | 'sports_team';
   };
   membership: {
     role: AuthRole;
     status: 'active' | 'disabled';
     scheduleMemberId: string | null;
   };
+  authorization?: AuthorizationContext;
 }
 
 export interface AuthStartupState {
@@ -35,6 +39,19 @@ export interface ManagedUser {
   role: AuthRole;
   membershipStatus: 'active' | 'disabled';
   lastLoginAt: string | null;
+}
+
+export interface ManagedSharedView {
+  id: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+  allMembers: boolean;
+  allCategories: boolean;
+  userIds: string[];
+  memberIds: string[];
+  categories: EventCategory[];
+  permissions: PermissionScope[];
 }
 
 type Fetcher = typeof fetch;
@@ -91,7 +108,7 @@ export async function logout(fetcher: Fetcher = fetch): Promise<void> {
   }
 }
 
-export async function loadManagedUsers(fetcher: Fetcher = fetch): Promise<ManagedUser[]> {
+export async function loadManagedUsers(fetcher: Fetcher = fetch): Promise<{ users: ManagedUser[]; sharedViews: ManagedSharedView[] }> {
   const response = await fetcher('/api/auth/users', { headers: { Accept: 'application/json' } });
   const payload = await response.json() as unknown;
 
@@ -99,7 +116,7 @@ export async function loadManagedUsers(fetcher: Fetcher = fetch): Promise<Manage
     throw new Error('Could not load users.');
   }
 
-  return payload.users;
+  return payload;
 }
 
 export async function createAuthInvite(email: string, role: Exclude<AuthRole, 'owner'>, fetcher: Fetcher = fetch): Promise<string> {
@@ -126,6 +143,14 @@ export async function revokeManagedUserSessions(userId: string, fetcher: Fetcher
 
   if (!response.ok) {
     throw new Error('Could not revoke sessions.');
+  }
+}
+
+export async function saveManagedSharedView(view: Omit<ManagedSharedView, 'id'> & { id?: string }, fetcher: Fetcher = fetch): Promise<void> {
+  const response = await postJson('/api/auth/users', { action: 'saveSharedView', view }, fetcher);
+
+  if (!response.ok) {
+    throw new Error('Could not save Shared View.');
   }
 }
 
@@ -173,7 +198,8 @@ function isAuthenticatedSession(value: unknown): value is AuthSession {
     typeof payload.user?.email === 'string' &&
     typeof payload.user.displayName === 'string' &&
     isAuthRole(payload.membership?.role) &&
-    typeof payload.workspace?.id === 'string'
+    typeof payload.workspace?.id === 'string' &&
+    (payload.authorization === undefined || isAuthorizationContext(payload.authorization))
   );
 }
 
@@ -190,12 +216,14 @@ function isInviteResponse(value: unknown): value is { valid: true; invite: { ema
   );
 }
 
-function isManagedUsersResponse(value: unknown): value is { users: ManagedUser[] } {
+function isManagedUsersResponse(value: unknown): value is { users: ManagedUser[]; sharedViews: ManagedSharedView[] } {
   return (
     typeof value === 'object' &&
     value !== null &&
     Array.isArray((value as { users?: unknown }).users) &&
-    ((value as { users: unknown[] }).users).every(isManagedUser)
+    ((value as { users: unknown[] }).users).every(isManagedUser) &&
+    Array.isArray((value as { sharedViews?: unknown }).sharedViews) &&
+    ((value as { sharedViews: unknown[] }).sharedViews).every(isManagedSharedView)
   );
 }
 
@@ -211,6 +239,31 @@ function isManagedUser(value: unknown): value is ManagedUser {
 
 function isInviteCreatedResponse(value: unknown): value is { inviteUrl: string } {
   return typeof value === 'object' && value !== null && typeof (value as { inviteUrl?: unknown }).inviteUrl === 'string';
+}
+
+function isManagedSharedView(value: unknown): value is ManagedSharedView {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const view = value as Partial<ManagedSharedView>;
+
+  return (
+    typeof view.id === 'string' &&
+    typeof view.name === 'string' &&
+    (typeof view.description === 'string' || view.description === null) &&
+    typeof view.active === 'boolean' &&
+    typeof view.allMembers === 'boolean' &&
+    typeof view.allCategories === 'boolean' &&
+    Array.isArray(view.userIds) &&
+    view.userIds.every((id) => typeof id === 'string') &&
+    Array.isArray(view.memberIds) &&
+    view.memberIds.every((id) => typeof id === 'string') &&
+    Array.isArray(view.categories) &&
+    view.categories.every((category) => typeof category === 'string') &&
+    Array.isArray(view.permissions) &&
+    view.permissions.every((permission) => typeof permission === 'string')
+  );
 }
 
 function isAuthRole(value: unknown): value is AuthRole {

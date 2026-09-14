@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useUiPreferences } from '../i18n';
 import type { AuthSession } from '../services/authClient';
 import { appBuildInfo, formatBuildDate, type AppBuildInfo } from '../services/appInfo';
+import { hasPermission } from '../services/authorization';
 import { PushNotificationsControl } from './PushNotificationsControl';
 import { UserManagementPanel } from './UserManagementPanel';
 
@@ -16,6 +17,7 @@ export function AppInfoButton({ buildInfo = appBuildInfo, defaultOpen = false, a
   const { language, t } = useUiPreferences();
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const environmentLabel = buildInfo.environment === 'production' ? t('production') : t('local');
+  const canUseNotifications = authSession === undefined || hasPermission(authSession.authorization, 'receive_notifications');
 
   return (
     <div className="app-info">
@@ -40,7 +42,7 @@ export function AppInfoButton({ buildInfo = appBuildInfo, defaultOpen = false, a
             <AppInfoRow label={t('buildDate')} value={formatBuildDate(buildInfo.buildTime, language)} />
             {buildInfo.branch !== null ? <AppInfoRow label={t('branch')} value={buildInfo.branch} /> : null}
           </dl>
-          <PushNotificationsControl />
+          {canUseNotifications ? <PushNotificationsControl /> : null}
           {authSession !== undefined ? <UserManagementPanel session={authSession} /> : null}
           {onLogout !== undefined ? (
             <button className="app-info__close" type="button" onClick={onLogout}>

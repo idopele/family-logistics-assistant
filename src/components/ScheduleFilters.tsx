@@ -26,6 +26,7 @@ interface ScheduleFiltersProps {
   children: Child[];
   childFilter: ChildFilter;
   categoryFilter: CategoryFilter;
+  availableCategoryFilters?: CategoryFilter[];
   categoryRankOccurrences?: ScheduleOccurrence[];
   showOnlyWithTransportation: boolean;
   onChildFilterChange: (filter: ChildFilter) => void;
@@ -94,6 +95,7 @@ export function ScheduleFilters({
   children,
   childFilter,
   categoryFilter,
+  availableCategoryFilters = categoryFilterValues,
   categoryRankOccurrences = [],
   showOnlyWithTransportation,
   onChildFilterChange,
@@ -103,10 +105,12 @@ export function ScheduleFilters({
   const { language, t } = useUiPreferences();
   const [areMoreCategoriesVisible, setAreMoreCategoriesVisible] = useState(false);
   const visibleCategoryFilters = useMemo(
-    () => getRankedCategoryFilters(categoryRankOccurrences, categoryFilter, areMoreCategoriesVisible),
-    [areMoreCategoriesVisible, categoryFilter, categoryRankOccurrences],
+    () =>
+      getRankedCategoryFilters(categoryRankOccurrences, categoryFilter, areMoreCategoriesVisible)
+        .filter((filter) => availableCategoryFilters.includes(filter)),
+    [areMoreCategoriesVisible, availableCategoryFilters, categoryFilter, categoryRankOccurrences],
   );
-  const hasHiddenCategories = visibleCategoryFilters.length < categoryFilterValues.length;
+  const hasHiddenCategories = visibleCategoryFilters.length < availableCategoryFilters.length;
 
   return (
     <section className="schedule-filters" aria-label={t('filters')}>

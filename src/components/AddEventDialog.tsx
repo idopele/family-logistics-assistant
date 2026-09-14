@@ -13,6 +13,7 @@ import { getDayOfWeek, isValidDate, isValidTime } from '../utils/dateTime';
 interface AddEventDialogProps {
   isOpen: boolean;
   children: Child[];
+  availableCategories?: EventCategory[];
   eventToEdit?: Event | null;
   onClose: () => void;
   onSave: (event: Event, reminderMinutesBefore: ReminderMinutesBefore | null) => Promise<AddEventSaveResult> | AddEventSaveResult;
@@ -89,8 +90,10 @@ const initialValues: AddEventFormValues = {
   notes: '',
 };
 
-export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave }: AddEventDialogProps) {
+export function AddEventDialog({ isOpen, children, availableCategories, eventToEdit, onClose, onSave }: AddEventDialogProps) {
   const { language, t } = useUiPreferences();
+  const visibleManualCategories = manualCategories.filter((category) => availableCategories === undefined || availableCategories.includes(category));
+  const canUseCustomCategory = availableCategories === undefined || availableCategories.includes('other');
   const [values, setValues] = useState<AddEventFormValues>(initialValues);
   const [error, setError] = useState<string | null>(null);
   const [partiallySavedEvent, setPartiallySavedEvent] = useState<Event | null>(null);
@@ -209,12 +212,12 @@ export function AddEventDialog({ isOpen, children, eventToEdit, onClose, onSave 
                 });
               }}
             >
-              {manualCategories.map((category) => (
+              {visibleManualCategories.map((category) => (
                 <option key={category} value={category}>
                   {getEventCategoryLabel({ category, customCategoryLabel: null }, language)}
                 </option>
               ))}
-              <option value="custom">{t('customActivityType')}</option>
+              {canUseCustomCategory ? <option value="custom">{t('customActivityType')}</option> : null}
             </select>
           </label>
 

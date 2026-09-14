@@ -1,4 +1,5 @@
-import type { Child, Event, EventException, EventReminder, TransportationLeg, TransportationPlan } from '../models';
+import type { AuthorizationContext, Child, Event, EventException, EventReminder, TransportationLeg, TransportationPlan } from '../models';
+import { isAuthorizationContext } from './authorization';
 import { loadCustomChildren } from './localChildStorage';
 import { loadCustomEventExceptions } from './localEventExceptionStorage';
 import { loadCustomEvents } from './localEventStorage';
@@ -10,6 +11,7 @@ export type SharedFamilyState = {
   eventExceptions: EventException[];
   transportationPlans: TransportationPlan[];
   eventReminders: EventReminder[];
+  authorization?: AuthorizationContext;
   initialized: boolean;
 };
 
@@ -186,6 +188,7 @@ export function parseSharedFamilyState(value: unknown): SharedFamilyState | null
     !Array.isArray(state.eventExceptions) ||
     !Array.isArray(state.transportationPlans) ||
     (state.eventReminders !== undefined && !Array.isArray(state.eventReminders)) ||
+    (state.authorization !== undefined && !isAuthorizationContext(state.authorization)) ||
     typeof state.initialized !== 'boolean'
   ) {
     return null;
@@ -207,6 +210,7 @@ export function parseSharedFamilyState(value: unknown): SharedFamilyState | null
     eventExceptions: state.eventExceptions,
     transportationPlans: state.transportationPlans,
     eventReminders: state.eventReminders ?? [],
+    authorization: state.authorization,
     initialized: state.initialized,
   };
 }

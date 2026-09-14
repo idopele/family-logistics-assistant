@@ -1,4 +1,5 @@
 export type { Child } from './Child';
+export type { AuthorizationContext, PermissionScope, ScheduleAuthorizationScope } from './Authorization';
 export type { Event } from './Event';
 export type { EventCategory } from './EventCategory';
 export type { RecurrenceRule } from './RecurrenceRule';

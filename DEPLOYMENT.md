@@ -77,6 +77,7 @@ Database migration file:
 - `migrations/0002_event_reminders.sql`
 - `migrations/0003_push_notifications.sql`
 - `migrations/0004_authentication_members.sql`
+- `migrations/0005_permission_shared_views.sql`
 
 The migration creates:
 
@@ -93,6 +94,11 @@ The migration creates:
 - `auth_sessions`
 - `auth_invites`
 - `user_schedule_member_links`
+- `shared_views`
+- `shared_view_users`
+- `shared_view_schedule_members`
+- `shared_view_categories`
+- `shared_view_permissions`
 - `app_meta`
 
 The existing Basic Auth middleware protects both the frontend and `/api/*` requests. Do not create unauthenticated API routes.
@@ -115,6 +121,8 @@ Reminder migration can be applied from the Cloudflare dashboard: open the D1 dat
 Push notification migration can also be applied from the Cloudflare dashboard: open the D1 database, go to Console, paste the SQL from `migrations/0003_push_notifications.sql`, and run it against `family-logistics-db`.
 
 Authentication migration can be applied from the Cloudflare dashboard: open D1 -> `family-logistics-db` -> Console, paste the SQL from `migrations/0004_authentication_members.sql`, and run it once. This migration is additive and must not drop existing schedule, transportation, reminder, push subscription, or delivery tables. Apply migration `0004` exactly once: its `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS` statements are rerunnable, but SQLite/D1 `ALTER TABLE ... ADD COLUMN` does not have the same rerunnable behavior.
+
+Permission migration can be applied from the Cloudflare dashboard: open D1 -> `family-logistics-db` -> Console, paste the SQL from `migrations/0005_permission_shared_views.sql`, and run it once. This migration is additive and creates the normalized Shared View tables used for restricted access.
 
 ## Application Authentication
 
@@ -190,7 +198,66 @@ Deep links:
 
 Important limitation:
 
-External sharing is NOT ready for real use until Step 14 adds the fine-grained permission engine and Shared Views. Viewer accounts are only a coarse foundation in Step 13.
+External sharing should be production-validated with Step 14 Shared Views before family data is exposed to invited restricted accounts.
+
+## Permission Engine and Shared Views
+
+Step 14 adds server-enforced, default-deny authorization for non-owner/non-admin accounts. Owner and admin accounts retain full operational workspace access. Member and viewer accounts receive no schedule data until an owner/admin assigns them to an active Shared View.
+
+Permission scopes:
+
+- `view_schedule`
+- `edit_schedule`
+- `view_transportation`
+- `edit_transportation`
+- `view_contacts`
+- `receive_notifications`
+- `manage_users`, role-level owner/admin only
+- `manage_shared_views`, role-level owner/admin only
+
+Shared View model:
+
+- `shared_views`: workspace, name, optional description, active flag, explicit `all_schedule_members`, explicit `all_categories`, creator, timestamps.
+- `shared_view_users`: users assigned to each Shared View.
+- `shared_view_schedule_members`: allowed seed or custom schedule member ids such as `daniel` and `emanuel`.
+- `shared_view_categories`: allowed `EventCategory` values.
+- `shared_view_permissions`: allowed non-management permission scopes.
+
+Effective restricted access is the union of all active Shared Views assigned to the user. An event is visible only when the user has `view_schedule` and both the schedule member and category match the effective scope, unless the Shared View explicitly grants all members or all categories.
+
+Server filtering:
+
+- `/api/shared` computes authorization from D1 on each refresh.
+- Owner/admin receive the full current response.
+- Restricted users receive only authorized custom children, custom events, event exceptions, transportation plans, and event reminders.
+- Transportation requires `view_transportation` and is limited to already-visible events.
+- Reminder data requires `receive_notifications` and is limited to already-visible events.
+- Mutations are checked server-side. `edit_schedule` is required for event/exception changes inside scope; `edit_transportation` is required for transportation changes inside scope; `receive_notifications` is required for reminder changes inside scope.
+
+Seed-data authorization:
+
+The bundled Daniel/Emanuel seed schedules still exist in the frontend bundle, but the dashboard now applies the server-provided authorization context before seed events are merged into occurrences, filters, counts, deep links, transportation summaries, or Today in the Family. Hidden seed events are not rendered or included in UI aggregates.
+
+Deep-link authorization:
+
+Existing `?eventId=<eventId>&date=YYYY-MM-DD` links remain supported. If a restricted user opens a link outside their scope, the app does not open the event and shows the localized no-permission message without exposing title, participant, category, location, notes, reminder, or transportation details.
+
+Notification safety:
+
+Owner/admin push enrollment continues to work. Restricted users only see/use notification controls when `receive_notifications` is granted. Family-wide push delivery should be revisited before broad external sharing so targeted notification routing can fully replace family-wide delivery for restricted accounts.
+
+Production validation plan:
+
+1. Apply `migrations/0005_permission_shared_views.sql` to production D1.
+2. Redeploy Pages without removing Basic Auth.
+3. Sign in as owner/admin and confirm the full schedule still loads.
+4. Create a member/viewer invite, accept it, and confirm the account initially sees the access-pending state.
+5. As owner/admin, create a Shared View for Daniel + Basketball with `view_schedule`; refresh the restricted account and confirm only Daniel basketball appears.
+6. Create a Shared View for Emanuel + School/Dance and confirm Daniel events, locations, notes, transportation, reminders, filters, and Today in the Family summaries do not leak.
+7. Test an unauthorized deep link and confirm only the permission message appears.
+8. Grant/remove permissions and confirm the next `/api/shared` refresh reflects the change without deleting the account.
+9. Confirm restricted users cannot create/edit/delete events or transportation outside scope.
+10. Confirm disabled accounts still receive zero data.
 
 ## Web Push Notifications
 
