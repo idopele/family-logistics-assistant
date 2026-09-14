@@ -1,44 +1,45 @@
 import { weekDayLabelsByLanguage } from '../i18n';
 import { useUiPreferences } from '../i18n';
-import type { WeekdayFilter } from '../utils/scheduleViewFilters';
+import type { SelectedWeekday } from '../utils/scheduleViewFilters';
 
 interface ScheduleDateFiltersProps {
-  weekdayFilter: WeekdayFilter;
-  specificDateFilter: string;
-  onWeekdayFilterChange: (filter: WeekdayFilter) => void;
+  selectedWeekdays: SelectedWeekday[];
+  specificDate: string | null;
+  onSelectedWeekdaysChange: (weekdays: SelectedWeekday[]) => void;
   onSpecificDateFilterChange: (date: string) => void;
   onClearSpecificDateFilter: () => void;
 }
 
 export function ScheduleDateFilters({
-  weekdayFilter,
-  specificDateFilter,
-  onWeekdayFilterChange,
+  selectedWeekdays,
+  specificDate,
+  onSelectedWeekdaysChange,
   onSpecificDateFilterChange,
   onClearSpecificDateFilter,
 }: ScheduleDateFiltersProps) {
   const { language, t } = useUiPreferences();
+  const selectedWeekdaySet = new Set(selectedWeekdays);
+
+  function toggleWeekday(day: SelectedWeekday) {
+    const nextWeekdays = selectedWeekdaySet.has(day)
+      ? selectedWeekdays.filter((weekday) => weekday !== day)
+      : [...selectedWeekdays, day].sort((first, second) => first - second);
+
+    onSelectedWeekdaysChange(nextWeekdays.length > 0 ? nextWeekdays : [0, 1, 2, 3, 4, 5, 6]);
+  }
 
   return (
     <section className="schedule-date-filters" aria-label={t('dateFilters')}>
       <div className="schedule-date-filters__weekdays">
-        <span className="schedule-date-filters__label">{t('weekdayFilter')}</span>
+        <span className="schedule-date-filters__label">{t('daysFilter')}</span>
         <div className="schedule-date-filters__buttons">
-          <button
-            className="schedule-date-filters__button"
-            type="button"
-            aria-pressed={weekdayFilter === 'all'}
-            onClick={() => onWeekdayFilterChange('all')}
-          >
-            {t('all')}
-          </button>
           {weekDayLabelsByLanguage[language].map((label, day) => (
             <button
               className="schedule-date-filters__button"
               type="button"
-              aria-pressed={weekdayFilter === day}
+              aria-pressed={selectedWeekdaySet.has(day as SelectedWeekday) && specificDate === null}
               key={label}
-              onClick={() => onWeekdayFilterChange(day as WeekdayFilter)}
+              onClick={() => toggleWeekday(day as SelectedWeekday)}
             >
               {label}
             </button>
@@ -46,10 +47,10 @@ export function ScheduleDateFilters({
         </div>
       </div>
       <label className="schedule-date-filters__date">
-        <span>{t('specificDateFilter')}</span>
-        <input type="date" value={specificDateFilter} onChange={(event) => onSpecificDateFilterChange(event.target.value)} />
+        <span>{t('dateFilter')}</span>
+        <input type="date" value={specificDate ?? ''} onChange={(event) => onSpecificDateFilterChange(event.target.value)} />
       </label>
-      {specificDateFilter !== '' ? (
+      {specificDate !== null ? (
         <button className="schedule-date-filters__clear" type="button" onClick={onClearSpecificDateFilter}>
           {t('clearDateFilter')}
         </button>

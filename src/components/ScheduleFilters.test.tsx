@@ -1,4 +1,4 @@
-import { renderToStaticMarkup } from 'react-dom/server';
+﻿import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 import { children as seedChildren } from '../data/children';
@@ -7,8 +7,27 @@ import { HomePage } from '../pages/HomePage';
 import type { ScheduleOccurrence } from '../models';
 import { ScheduleFilters, getRankedCategoryFilters } from './ScheduleFilters';
 
-function occurrence(category: ScheduleOccurrence['category'], date = '2026-09-08'): Pick<ScheduleOccurrence, 'category' | 'date'> {
+function occurrence(
+  category: ScheduleOccurrence['category'],
+  date = '2026-09-08',
+): Pick<ScheduleOccurrence, 'category' | 'date'> {
   return { category, date };
+}
+
+function renderFilters(props: Partial<Parameters<typeof ScheduleFilters>[0]> = {}) {
+  return renderToStaticMarkup(
+    <ScheduleFilters
+      children={[]}
+      selectedMemberIds={[]}
+      selectedCategories={[]}
+      categoryRankOccurrences={[]}
+      showOnlyWithTransportation={false}
+      onMemberSelectionChange={() => undefined}
+      onCategorySelectionChange={() => undefined}
+      onShowOnlyWithTransportationChange={() => undefined}
+      {...props}
+    />,
+  );
 }
 
 describe('ScheduleFilters compact activity ranking', () => {
@@ -22,17 +41,17 @@ describe('ScheduleFilters compact activity ranking', () => {
         occurrence('school'),
         occurrence('school'),
       ] as ScheduleOccurrence[],
-      'all',
+      [],
       false,
     );
 
-    expect(filters.slice(0, 4)).toEqual(['all', 'school', 'doctor', 'basketball']);
+    expect(filters.slice(0, 3)).toEqual(['school', 'doctor', 'basketball']);
   });
 
   it('supports single-date ranking from that date', () => {
     const visibleDateOccurrences = [occurrence('dance'), occurrence('dance'), occurrence('doctor')] as ScheduleOccurrence[];
 
-    expect(getRankedCategoryFilters(visibleDateOccurrences, 'all', false).slice(0, 3)).toEqual(['all', 'dance', 'doctor']);
+    expect(getRankedCategoryFilters(visibleDateOccurrences, [], false).slice(0, 2)).toEqual(['dance', 'doctor']);
   });
 
   it('supports full-week ranking from current week occurrences', () => {
@@ -42,7 +61,7 @@ describe('ScheduleFilters compact activity ranking', () => {
       occurrence('school', '2026-09-08'),
     ] as ScheduleOccurrence[];
 
-    expect(getRankedCategoryFilters(weekOccurrences, 'all', false).slice(0, 3)).toEqual(['all', 'basketball', 'school']);
+    expect(getRankedCategoryFilters(weekOccurrences, [], false).slice(0, 2)).toEqual(['basketball', 'school']);
   });
 
   it('keeps a selected hidden category visible in compact mode', () => {
@@ -54,7 +73,7 @@ describe('ScheduleFilters compact activity ranking', () => {
         occurrence('doctor'),
         occurrence('meal'),
       ] as ScheduleOccurrence[],
-      'work',
+      ['work'],
       false,
     );
 
@@ -62,8 +81,8 @@ describe('ScheduleFilters compact activity ranking', () => {
   });
 
   it('More reveals remaining categories and Show less collapses them', () => {
-    const compact = getRankedCategoryFilters([occurrence('school')] as ScheduleOccurrence[], 'all', false);
-    const expanded = getRankedCategoryFilters([occurrence('school')] as ScheduleOccurrence[], 'all', true);
+    const compact = getRankedCategoryFilters([occurrence('school')] as ScheduleOccurrence[], [], false);
+    const expanded = getRankedCategoryFilters([occurrence('school')] as ScheduleOccurrence[], [], true);
 
     expect(compact.length).toBeLessThan(expanded.length);
     expect(expanded).toContain('other');
@@ -71,20 +90,20 @@ describe('ScheduleFilters compact activity ranking', () => {
   });
 
   it('renders More in compact mode', () => {
-    const markup = renderToStaticMarkup(
-      <ScheduleFilters
-        children={[]}
-        childFilter="all"
-        categoryFilter="all"
-        categoryRankOccurrences={[]}
-        showOnlyWithTransportation={false}
-        onChildFilterChange={() => undefined}
-        onCategoryFilterChange={() => undefined}
-        onShowOnlyWithTransportationChange={() => undefined}
-      />,
-    );
+    const markup = renderFilters();
 
-    expect(markup).toContain('אפשרויות נוספות');
+    expect(markup).toContain(translations.he.moreActivities);
+  });
+
+  it('limits activity options to authorized categories', () => {
+    const markup = renderFilters({
+      selectedCategories: ['doctor'],
+      availableCategoryFilters: ['all', 'doctor'],
+      categoryRankOccurrences: [occurrence('doctor'), occurrence('school')] as ScheduleOccurrence[],
+    });
+
+    expect(markup).toContain('aria-pressed="true"');
+    expect(markup).not.toContain('School');
   });
 });
 
@@ -96,13 +115,11 @@ describe('compact dashboard terminology and family-member presentation', () => {
     const markup = renderToStaticMarkup(<HomePage />);
 
     expect(markup).toContain('Family Logistics Assistant');
-    expect(markup).not.toContain('הלו״ז המשפחתי');
+    expect(markup).not.toContain('The family schedule');
     vi.unstubAllGlobals();
   });
 
-  it('uses family-member terminology in Hebrew and English', () => {
-    expect(translations.he.addChild).toBe('+ הוסף בן/בת משפחה');
-    expect(translations.he.addChildTitle).toBe('הוסף בן/בת משפחה');
+  it('uses family-member terminology in English for member creation', () => {
     expect(translations.en.addChild).toBe('+ Add family member');
     expect(translations.en.addChildTitle).toBe('Add family member');
   });
@@ -113,20 +130,20 @@ describe('compact dashboard terminology and family-member presentation', () => {
   });
 
   it('renders stable configured colors for family-member chips', () => {
-    const markup = renderToStaticMarkup(
-      <ScheduleFilters
-        children={[{ id: 'yonti', name: 'Yonti', color: '#0F766E', isActive: true }]}
-        childFilter="yonti"
-        categoryFilter="all"
-        categoryRankOccurrences={[]}
-        showOnlyWithTransportation={false}
-        onChildFilterChange={() => undefined}
-        onCategoryFilterChange={() => undefined}
-        onShowOnlyWithTransportationChange={() => undefined}
-      />,
-    );
+    const markup = renderFilters({
+      children: [{ id: 'yonti', name: 'Yonti', color: '#0F766E', isActive: true }],
+      selectedMemberIds: ['yonti'],
+    });
 
     expect(markup).toContain('--person-color:#0F766E');
     expect(markup).toContain('Y');
+  });
+
+  it('uses workspace-neutral member filter terminology', () => {
+    const markup = renderFilters();
+
+    expect(translations.en.members).toBe('Members');
+    expect(markup).toContain(translations.he.members);
+    expect(markup).not.toContain('Children');
   });
 });

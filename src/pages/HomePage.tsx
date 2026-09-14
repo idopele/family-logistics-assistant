@@ -9,12 +9,13 @@ import { FamilyActionCenter } from '../components/FamilyActionCenter';
 import { OccurrenceEditDialog } from '../components/OccurrenceEditDialog';
 import { PwaInstallControl } from '../components/PwaInstallControl';
 import { ScheduleDateFilters } from '../components/ScheduleDateFilters';
-import { ScheduleFilters, categoryFilterValues, type CategoryFilter, type ChildFilter } from '../components/ScheduleFilters';
+import { ScheduleFilters, categoryFilterValues, type CategoryFilter } from '../components/ScheduleFilters';
 import { TransportationConflicts } from '../components/TransportationConflicts';
 import { TransportationDialog } from '../components/TransportationDialog';
 import { UiPreferenceControls } from '../components/UiPreferenceControls';
 import { WeekNavigation } from '../components/WeekNavigation';
 import { children as seedChildren } from '../data/children';
+import { getEventCategoryLabel } from '../data/eventCategories';
 import { eventExceptions } from '../data/eventExceptions';
 import { events } from '../data/events';
 import type { Child, Event, EventCategory, EventException, EventReminder, ScheduleOccurrence, TransportationPlan } from '../models';
@@ -61,15 +62,18 @@ import { detectTransportationConflicts } from '../services/transportationConflic
 import { buildFamilyActionCenterData } from '../services/familyActionCenter';
 import { registerFamilyServiceWorker } from '../services/pushNotifications';
 import { canEditEvent, hasPermission, isEventAuthorized } from '../services/authorization';
-import { useUiPreferences } from '../i18n';
+import { useUiPreferences, type Language } from '../i18n';
 import type { AuthSession } from '../services/authClient';
-import { addDays, isValidDate } from '../utils/dateTime';
+import { addDays, getDayOfWeek, isValidDate } from '../utils/dateTime';
 import {
-  getDefaultWeekdayFilter,
-  getVisibleWeekDays,
-  getWeekdayFilterAfterClearingSpecificDate,
+  createResetFilterState,
+  filterOccurrencesForDashboard,
+  getVisibleWeekDaysForSelection,
+  getWeekdaysAfterClearingSpecificDate,
   getWeekStartForSpecificDate,
-  type WeekdayFilter,
+  sanitizeDashboardFilterState,
+  type DashboardFilterState,
+  type SelectedWeekday,
 } from '../utils/scheduleViewFilters';
 import {
   formatWeekRange,
@@ -97,12 +101,9 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
   const localMigrationData = useMemo<LocalFamilyData>(() => loadLocalFamilyDataForMigration(), []);
   const currentWeekStartDate = useMemo(() => getSundayOfWeek(today), [today]);
   const [weekStartDate, setWeekStartDate] = useState(() => getSundayOfWeek(today));
-  const [childFilter, setChildFilter] = useState<ChildFilter>('all');
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
-  const [weekdayFilter, setWeekdayFilter] = useState<WeekdayFilter>(() =>
-    getDefaultWeekdayFilter(today, getSundayOfWeek(today)),
+  const [filters, setFilters] = useState<DashboardFilterState>(() =>
+    createResetFilterState(today, getSundayOfWeek(today), [], []),
   );
-  const [specificDateFilter, setSpecificDateFilter] = useState('');
   const [showOnlyWithTransportation, setShowOnlyWithTransportation] = useState(false);
   const [isAddEventOpen, setIsAddEventOpen] = useState(false);
   const [isAddChildOpen, setIsAddChildOpen] = useState(false);
@@ -131,10 +132,6 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
   const canReceiveNotifications = authSession === undefined || hasPermission(effectiveAuthorization, 'receive_notifications');
   const canManageFamilyMembers = authSession === undefined || hasPermission(effectiveAuthorization, 'manage_users');
   const weekDays = useMemo(() => getWorkWeekDays(weekStartDate, language), [language, weekStartDate]);
-  const visibleWeekDays = useMemo(
-    () => getVisibleWeekDays(weekDays, weekdayFilter, specificDateFilter, language),
-    [language, specificDateFilter, weekDays, weekdayFilter],
-  );
   const activeChildren = useMemo(
     () =>
       [...seedChildren, ...customChildren].filter((child) => {
@@ -153,6 +150,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
       }),
     [canViewSchedule, customChildren, effectiveAuthorization],
   );
+  const authorizedMemberIds = useMemo(() => activeChildren.map((child) => child.id), [activeChildren]);
   const childrenById = useMemo(() => new Map(activeChildren.map((child) => [child.id, child])), [activeChildren]);
   const rawAllEvents = useMemo(() => [...events, ...customEvents], [customEvents]);
   const rawAllEventExceptions = useMemo(() => [...eventExceptions, ...customEventExceptions], [customEventExceptions]);
@@ -241,16 +239,6 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
       weekEndDate,
     );
   }, [activeChildren, transportationConflictOccurrences, visibleTransportationPlans, weekDays, weekStartDate]);
-  const weekOccurrences = useMemo(() => {
-    return weekAllOccurrences.filter((occurrence) => {
-      const matchesChild = childFilter === 'all' || occurrence.childId === childFilter;
-      const matchesCategory = categoryFilter === 'all' || occurrence.category === categoryFilter;
-      const matchesTransportation =
-        !showOnlyWithTransportation || getTransportationPlanForScheduleOccurrence(visibleTransportationPlans, occurrence) !== null;
-
-      return matchesChild && matchesCategory && matchesTransportation;
-    });
-  }, [categoryFilter, childFilter, showOnlyWithTransportation, visibleTransportationPlans, weekAllOccurrences]);
   const availableCategoryFilters = useMemo<CategoryFilter[]>(() => {
     if (effectiveAuthorization === null || effectiveAuthorization.fullAccess || effectiveAuthorization.scheduleScope.allCategories) {
       return categoryFilterValues;
@@ -267,13 +255,36 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
     () => availableCategoryFilters.filter((category) => category !== 'all') as EventCategory[],
     [availableCategoryFilters],
   );
+  const authorizedCategories = addEventCategories;
+  const sanitizedFilters = useMemo(
+    () => sanitizeDashboardFilterState(filters, authorizedMemberIds, authorizedCategories),
+    [authorizedCategories, authorizedMemberIds, filters],
+  );
+  const visibleWeekDays = useMemo(
+    () => getVisibleWeekDaysForSelection(weekDays, sanitizedFilters.selectedWeekdays, sanitizedFilters.specificDate, language),
+    [language, sanitizedFilters, weekDays],
+  );
+  const weekOccurrences = useMemo(() => {
+    const filteredOccurrences = filterOccurrencesForDashboard(
+      weekAllOccurrences,
+      sanitizedFilters,
+      authorizedMemberIds,
+      authorizedCategories,
+    );
+
+    return filteredOccurrences.filter((occurrence) =>
+      !showOnlyWithTransportation || getTransportationPlanForScheduleOccurrence(visibleTransportationPlans, occurrence) !== null,
+    );
+  }, [authorizedCategories, authorizedMemberIds, sanitizedFilters, showOnlyWithTransportation, visibleTransportationPlans, weekAllOccurrences]);
   const categoryRankOccurrences = useMemo(() => {
-    if (specificDateFilter !== '' && isValidDate(specificDateFilter)) {
-      return weekAllOccurrences.filter((occurrence) => occurrence.date === specificDateFilter);
+    if (sanitizedFilters.specificDate !== null && isValidDate(sanitizedFilters.specificDate)) {
+      return weekAllOccurrences.filter((occurrence) => occurrence.date === sanitizedFilters.specificDate);
     }
 
-    return weekAllOccurrences;
-  }, [specificDateFilter, weekAllOccurrences]);
+    return weekAllOccurrences.filter((occurrence) =>
+      sanitizedFilters.selectedWeekdays.includes(getDayOfWeek(occurrence.date) as SelectedWeekday),
+    );
+  }, [sanitizedFilters, weekAllOccurrences]);
   const weeklyTransportationSummary = useMemo(() => {
     const occurrenceKeys = new Set(weekAllOccurrences.map((occurrence) => getTransportationKey(occurrence.eventId, occurrence.date)));
     const plansInWeek = visibleTransportationPlans.filter((plan) => occurrenceKeys.has(getTransportationKey(plan.eventId, plan.occurrenceDate)));
@@ -286,6 +297,17 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
       totalLegs: outboundCount + returnCount,
     };
   }, [visibleTransportationPlans, weekAllOccurrences]);
+  const activeFilterSummary = useMemo(
+    () =>
+      buildActiveFilterSummary({
+        filters: sanitizedFilters,
+        authorizedMemberIds,
+        authorizedCategories,
+        childrenById,
+        language,
+      }),
+    [authorizedCategories, authorizedMemberIds, childrenById, language, sanitizedFilters],
+  );
   const familyActionCenterData = useMemo(
     () =>
       buildFamilyActionCenterData({
@@ -339,16 +361,17 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
   }, []);
 
   useEffect(() => {
-    if (childFilter !== 'all' && !activeChildren.some((child) => child.id === childFilter)) {
-      setChildFilter('all');
-    }
-  }, [activeChildren, childFilter]);
+    const nextFilters = sanitizeDashboardFilterState(filters, authorizedMemberIds, authorizedCategories);
 
-  useEffect(() => {
-    if (!availableCategoryFilters.includes(categoryFilter)) {
-      setCategoryFilter('all');
+    if (
+      nextFilters.specificDate !== filters.specificDate ||
+      nextFilters.selectedMemberIds.join('|') !== filters.selectedMemberIds.join('|') ||
+      nextFilters.selectedCategories.join('|') !== filters.selectedCategories.join('|') ||
+      nextFilters.selectedWeekdays.join('|') !== filters.selectedWeekdays.join('|')
+    ) {
+      setFilters(nextFilters);
     }
-  }, [availableCategoryFilters, categoryFilter]);
+  }, [authorizedCategories, authorizedMemberIds, filters]);
 
   useEffect(() => {
     if (deepLinkProcessedRef.current || sharedDataStatus === 'syncing') {
@@ -373,7 +396,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
     }
 
     setWeekStartDate(getWeekStartForSpecificDate(deepLink.date));
-    setSpecificDateFilter(deepLink.date);
+    setFilters((currentFilters) => ({ ...currentFilters, specificDate: deepLink.date }));
     setSelectedOccurrence(occurrence);
     setDeepLinkMessage(null);
   }, [allEventExceptions, allEvents, rawAllEventExceptions, rawAllEvents, sharedDataStatus, t]);
@@ -678,23 +701,22 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
   }
 
   function handlePreviousWeek() {
-    setSpecificDateFilter('');
+    setFilters({ ...filters, specificDate: null });
     setWeekStartDate(getPreviousWeekStart(weekStartDate));
   }
 
   function handleCurrentWeek() {
-    setSpecificDateFilter('');
     setWeekStartDate(getSundayOfWeek(today));
-    setWeekdayFilter(getDefaultWeekdayFilter(today, getSundayOfWeek(today)));
+    setFilters(createResetFilterState(today, getSundayOfWeek(today), authorizedMemberIds, authorizedCategories));
   }
 
   function handleNextWeek() {
-    setSpecificDateFilter('');
+    setFilters({ ...filters, specificDate: null });
     setWeekStartDate(getNextWeekStart(weekStartDate));
   }
 
   function handleSpecificDateFilterChange(date: string) {
-    setSpecificDateFilter(date);
+    setFilters({ ...filters, specificDate: date === '' ? null : date });
 
     if (date !== '' && isValidDate(date)) {
       setWeekStartDate(getWeekStartForSpecificDate(date));
@@ -702,8 +724,30 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
   }
 
   function handleClearSpecificDateFilter() {
-    setSpecificDateFilter('');
-    setWeekdayFilter(getWeekdayFilterAfterClearingSpecificDate(today, weekStartDate));
+    setFilters({
+      ...filters,
+      specificDate: null,
+      selectedWeekdays: getWeekdaysAfterClearingSpecificDate(today, weekStartDate, filters.selectedWeekdays),
+    });
+  }
+
+  function handleMemberSelectionChange(selectedMemberIds: string[]) {
+    setFilters({ ...filters, selectedMemberIds });
+  }
+
+  function handleCategorySelectionChange(selectedCategories: EventCategory[]) {
+    setFilters({ ...filters, selectedCategories });
+  }
+
+  function handleSelectedWeekdaysChange(selectedWeekdays: SelectedWeekday[]) {
+    setFilters({ ...filters, selectedWeekdays, specificDate: null });
+  }
+
+  function handleResetFilters() {
+    const currentWeekStart = getSundayOfWeek(today);
+
+    setWeekStartDate(currentWeekStart);
+    setFilters(createResetFilterState(today, currentWeekStart, authorizedMemberIds, authorizedCategories));
   }
 
   return (
@@ -712,21 +756,6 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
         <div className="dashboard-top__main">
           <div className="dashboard-header">
             <h1 id="app-title">{t('appName')}</h1>
-          </div>
-          <div className="dashboard-time-controls">
-            <WeekNavigation
-              weekLabel={formatWeekRange(weekStartDate, language)}
-              onPreviousWeek={handlePreviousWeek}
-              onCurrentWeek={handleCurrentWeek}
-              onNextWeek={handleNextWeek}
-            />
-            <ScheduleDateFilters
-              weekdayFilter={weekdayFilter}
-              specificDateFilter={specificDateFilter}
-              onWeekdayFilterChange={setWeekdayFilter}
-              onSpecificDateFilterChange={handleSpecificDateFilterChange}
-              onClearSpecificDateFilter={handleClearSpecificDateFilter}
-            />
           </div>
           <div className="dashboard-header-tools">
             <UiPreferenceControls />
@@ -748,17 +777,40 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
           </div>
         </div>
 
-        <ScheduleFilters
-          children={activeChildren}
-          childFilter={childFilter}
-          categoryFilter={categoryFilter}
-          availableCategoryFilters={availableCategoryFilters}
-          categoryRankOccurrences={categoryRankOccurrences}
-          showOnlyWithTransportation={showOnlyWithTransportation}
-          onChildFilterChange={setChildFilter}
-          onCategoryFilterChange={setCategoryFilter}
-          onShowOnlyWithTransportationChange={setShowOnlyWithTransportation}
-        />
+        {canViewSchedule ? (
+          <>
+            <ScheduleFilters
+              children={activeChildren}
+              selectedMemberIds={sanitizedFilters.selectedMemberIds}
+              selectedCategories={sanitizedFilters.selectedCategories}
+              availableCategoryFilters={availableCategoryFilters}
+              categoryRankOccurrences={categoryRankOccurrences}
+              showOnlyWithTransportation={showOnlyWithTransportation}
+              onMemberSelectionChange={handleMemberSelectionChange}
+              onCategorySelectionChange={handleCategorySelectionChange}
+              onShowOnlyWithTransportationChange={setShowOnlyWithTransportation}
+            />
+            <div className="dashboard-time-controls">
+              <WeekNavigation
+                weekLabel={formatWeekRange(weekStartDate, language)}
+                onPreviousWeek={handlePreviousWeek}
+                onCurrentWeek={handleCurrentWeek}
+                onNextWeek={handleNextWeek}
+              />
+              <ScheduleDateFilters
+                selectedWeekdays={sanitizedFilters.selectedWeekdays}
+                specificDate={sanitizedFilters.specificDate}
+                onSelectedWeekdaysChange={handleSelectedWeekdaysChange}
+                onSpecificDateFilterChange={handleSpecificDateFilterChange}
+                onClearSpecificDateFilter={handleClearSpecificDateFilter}
+              />
+            </div>
+            <section className="active-filter-summary" aria-label={t('selectedFilters')}>
+              <span>{activeFilterSummary}</span>
+              <button type="button" onClick={handleResetFilters}>{t('reset')}</button>
+            </section>
+          </>
+        ) : null}
         {deepLinkMessage !== null ? (
           <section className="shared-data-message" data-status="issue">
             <span>{deepLinkMessage}</span>
@@ -820,6 +872,9 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
           <h2 id="weekly-schedule-title">{t('weekSection')}</h2>
           <span>{formatWeekRange(weekStartDate, language)}</span>
         </div>
+        {canViewSchedule && weekOccurrences.length === 0 ? (
+          <p className="weekly-schedule__empty-filter">{t('noEventsMatchFilters')}</p>
+        ) : null}
         <div className="weekly-grid" aria-label={t('weekSection')}>
           {visibleWeekDays.map((day) => (
             <DaySchedule
@@ -828,7 +883,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
               date={day.date}
               occurrences={weekOccurrences.filter((occurrence) => occurrence.date === day.date)}
               childrenById={childrenById}
-              childFilter={childFilter}
+              childFilter={sanitizedFilters.selectedMemberIds.length === 1 ? sanitizedFilters.selectedMemberIds[0] : 'all'}
               editableEventIds={editableEventIds}
               customRecurringEventIds={customRecurringEventIds}
               transportationPlansByOccurrence={transportationPlansByOccurrence}
@@ -923,6 +978,38 @@ function SharedDataStatusIndicator({ status }: { status: SharedDataStatus }) {
 
 function getTransportationKey(eventId: string, occurrenceDate: string): string {
   return `${eventId}|${occurrenceDate}`;
+}
+
+function buildActiveFilterSummary({
+  filters,
+  authorizedMemberIds,
+  authorizedCategories,
+  childrenById,
+  language,
+}: {
+  filters: DashboardFilterState;
+  authorizedMemberIds: string[];
+  authorizedCategories: EventCategory[];
+  childrenById: Map<string, Child>;
+  language: Language;
+}): string {
+  const selectedMembers = filters.selectedMemberIds.length === authorizedMemberIds.length
+    ? []
+    : filters.selectedMemberIds.map((memberId) => childrenById.get(memberId)?.name ?? memberId);
+  const selectedCategories = filters.selectedCategories.length === authorizedCategories.length
+    ? []
+    : filters.selectedCategories.map((category) => getEventCategoryLabel({ category, customCategoryLabel: null }, language));
+  const selectedWhen = filters.specificDate !== null
+    ? [filters.specificDate]
+    : filters.selectedWeekdays.map((weekday) => weekDayLabelsForSummary(language)[weekday] ?? weekday.toString());
+
+  return [...selectedMembers, ...selectedCategories, ...selectedWhen].join(' · ');
+}
+
+function weekDayLabelsForSummary(language: Language): readonly string[] {
+  return language === 'en'
+    ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    : ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
 }
 
 function getCurrentTimeString(): string {
