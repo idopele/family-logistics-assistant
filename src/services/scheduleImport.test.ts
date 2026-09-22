@@ -3,6 +3,7 @@ import { getOccurrencesForRange } from './scheduleEngine';
 import {
   buildScheduleImportRows,
   importRowToEvent,
+  isImportedFromSource,
   parseCsv,
   parseImportDate,
   parseImportTime,
@@ -69,8 +70,60 @@ describe('schedule CSV import parsing and preview', () => {
   it('normalizes supported date and time formats', () => {
     expect(parseImportDate('2026-10-03')).toBe('2026-10-03');
     expect(parseImportDate('03.10.2026')).toBe('2026-10-03');
+    expect(parseImportDate('08-10-2026')).toBe('2026-10-08');
     expect(parseImportTime('18:30:00')).toBe('18:30');
     expect(parseImportTime('6:30 PM')).toBe('18:30');
+    expect(parseImportTime('7:00 pm')).toBe('19:00');
+  });
+
+  it('maps the official Daniel game CSV format automatically', () => {
+    const preview = buildScheduleImportRows({
+      csv: 'Subject,Start Date,End Date,Start Time,End Time,,Home Team,Away Team,Location\n"(בית) Game &quot;A&quot;",08-10-2026,08-10-2026,7:00 pm,9:00 pm,,מ.ס. אבן יהודה,מכבי תל מונד הדס,"Court ""A"", Ralf"',
+      mode: 'dated',
+      defaultCategory: 'basketball',
+    });
+
+    expect(preview.mapping).toMatchObject({
+      title: 'Subject',
+      date: 'Start Date',
+      startTime: 'Start Time',
+      endTime: 'End Time',
+      homeTeam: 'Home Team',
+      awayTeam: 'Away Team',
+      location: 'Location',
+    });
+    expect(preview.rows[0]).toMatchObject({
+      date: '2026-10-08',
+      startTime: '19:00',
+      endTime: '21:00',
+      title: '(בית) Game "A"',
+      location: 'Court "A", Ralf',
+      sourceKind: 'official_game_csv',
+      status: 'ready',
+    });
+    expect(preview.rows[0]?.notes).toContain('קבוצת בית: מ.ס. אבן יהודה');
+    expect(preview.rows[0]?.notes).toContain('קבוצת חוץ: מכבי תל מונד הדס');
+  });
+
+  it('imports official game rows as one-time events with official source metadata', () => {
+    const preview = buildScheduleImportRows({
+      csv: 'Subject,Start Date,Start Time,End Time,Home Team,Away Team,Location\nGame,08-10-2026,7:00 pm,9:00 pm,Home,Away,Court',
+      mode: 'dated',
+      defaultCategory: 'basketball',
+    });
+    const event = importRowToEvent({
+      row: preview.rows[0]!,
+      targetMemberId: 'daniel',
+      defaultCategory: 'basketball',
+      mode: 'dated',
+      batchId: 'official-a',
+      nowIso: '2026-09-22T00:00:00.000Z',
+    });
+
+    expect(event?.recurrence).toBeNull();
+    expect(event?.date).toBe('2026-10-08');
+    expect(event?.notes).toContain('import_source:official_game_csv');
+    expect(isImportedFromSource(event!, 'official_game_csv')).toBe(true);
   });
 
   it('flags invalid date, invalid time, and missing title', () => {

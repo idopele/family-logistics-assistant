@@ -347,7 +347,7 @@ Manual push validation plan:
 
 ## CSV Schedule Import
 
-Version `0.14.4` adds an authenticated CSV schedule import flow for users who can edit schedules. No D1 migration is required for this feature; imported rows are stored as normal custom events in the existing `custom_events` table.
+Version `0.14.5` adds an authenticated CSV and pasted weekly schedule import flow for users who can edit schedules. No D1 migration is required for this feature; imported rows are stored as normal custom events in the existing `custom_events` table.
 
 Supported CSV format:
 
@@ -357,11 +357,14 @@ Supported CSV format:
 - Common columns: `date`, `day`, `start_time`, `end_time`, `title`, `location`, `notes`, and `category`.
 - Date values support `YYYY-MM-DD`, `DD/MM/YYYY`, and `DD.MM.YYYY`.
 - Time values support `HH:mm`, `HH:mm:ss`, and common AM/PM values such as `6:30 PM`.
+- Official game CSV files also support `DD-MM-YYYY` dates such as `08-10-2026` and lowercase AM/PM times such as `7:00 pm`.
+- Official game CSV headers map automatically: `Subject`, `Start Date`, `End Date`, `Start Time`, `End Time`, blank column, `Home Team`, `Away Team`, and `Location`.
 
 Import modes:
 
 - Dated schedule: rows with exact dates become one-time custom events.
 - Weekly recurring schedule: rows with weekdays become recurring custom events using the existing recurrence model. The user chooses the effective start date and optional end date.
+- Weekly schedule text: pasted WhatsApp-style text is resolved to one concrete Sunday-Saturday target week and imported as one-time events, not recurrence.
 - Imported events remain normal editable custom events, appear in the weekly schedule, obey filters and Shared View permissions, support deep links, and can receive reminders.
 
 Authorization behavior:
@@ -397,6 +400,43 @@ Production validation procedure:
 8. Verify Daniel/Basketball filters show the imported rows.
 9. Verify a restricted viewer can see only imported events inside their Shared View scope.
 10. Open an imported event and confirm existing edit/delete/reminder behavior still works.
+
+Daniel official game CSV workflow:
+
+```csv
+Subject,Start Date,End Date,Start Time,End Time,,Home Team,Away Team,Location
+"(בית) משחק ליגה",08-10-2026,08-10-2026,7:00 pm,9:00 pm,,מ.ס. אבן יהודה,מכבי תל מונד הדס,"אולם ""רלף"", אבן יהודה"
+```
+
+1. Open Import schedule.
+2. Choose CSV file.
+3. Choose Daniel as the target member and Basketball as the default activity.
+4. Upload the official file without editing the source CSV.
+5. Confirm that `Subject` maps to title, `Start Date` maps to date, `Start Time` and `End Time` normalize to 24-hour time, and `Location` preserves quoted commas and doubled quotes.
+6. Confirm Home Team and Away Team are retained in event notes.
+7. Import selected rows and verify the games appear as one-time Basketball events.
+
+Daniel weekly WhatsApp schedule workflow:
+
+```text
+לו״ז
+שבת 16:00
+ראשון 09:00 רלף
+שלישי 19:00 רלף
+רביעי 17:15 אתלטיקה
+          18:00 רלף
+חמישי משחק אימון בהוד השרון אעדכן שעת הסעה
+```
+
+1. Open Import schedule.
+2. Choose Weekly schedule text.
+3. Choose Daniel and Basketball.
+4. Choose the target week. The app resolves weekdays into exact dates for that Sunday-Saturday week.
+5. Paste the message.
+6. Confirm continuation lines inherit the previous weekday.
+7. Correct any missing time directly in Preview. Rows with missing time cannot be imported until corrected or deselected.
+8. Leave Update weekly schedule enabled when replacing a prior WhatsApp weekly training import for the same Daniel/Basketball/week.
+9. Confirm replacement safety: only prior `whatsapp_weekly` imported training rows for that member/category/week are replaced. Official game CSV events, manual events, school, dance, other members, and basketball events with unknown source are preserved.
 
 ## Manual Deployment Steps
 

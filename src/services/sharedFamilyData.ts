@@ -133,6 +133,7 @@ export async function importSharedSchedule(
     endDate?: string | null;
     batchId: string;
     rows: ScheduleImportInputRow[];
+    replaceWeekly?: boolean;
   },
   fetcher: Fetcher = fetch,
 ): Promise<ScheduleImportResult> {

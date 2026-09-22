@@ -13,6 +13,7 @@ import {
   getDuplicateKeyForTarget,
   getDuplicateKeyFromEvent,
   importRowToEvent,
+  isImportedFromSource,
   maxScheduleImportRows,
   type ScheduleImportInputRow,
   type ScheduleImportMode,
@@ -82,6 +83,7 @@ interface ScheduleImportPayload {
   endDate?: string | null;
   batchId: string;
   rows: ScheduleImportInputRow[];
+  replaceWeekly?: boolean;
 }
 
 interface ScheduleImportResult {
@@ -529,6 +531,25 @@ async function applyScheduleImport(db: D1Database, auth: AuthenticatedSession | 
   let duplicates = 0;
   let errors = 0;
 
+  if (payload.replaceWeekly === true && payload.defaultCategory === 'basketball' && payload.startDate !== undefined) {
+    const weekEndDate = payload.endDate ?? payload.startDate;
+    const removableEvents = customEvents.filter((event) =>
+      event.childId === payload.targetMemberId &&
+      event.category === 'basketball' &&
+      event.recurrence === null &&
+      event.date !== null &&
+      event.date >= payload.startDate! &&
+      event.date <= weekEndDate &&
+      isImportedFromSource(event, 'whatsapp_weekly') &&
+      (authorization === null || canAccessEvent(authorization, event, 'edit_schedule'))
+    );
+
+    statements.push(...removableEvents.map((event) => db.prepare('DELETE FROM custom_events WHERE id = ?').bind(event.id)));
+    for (const event of removableEvents) {
+      duplicateKeys.delete(getDuplicateKeyFromEvent(event));
+    }
+  }
+
   for (const row of payload.rows) {
     if (!row.selected) {
       skipped += 1;
@@ -578,7 +599,7 @@ async function applyScheduleImport(db: D1Database, auth: AuthenticatedSession | 
   }
 
   return {
-    created: statements.length,
+    created: eventIds.length,
     skipped,
     duplicates,
     errors,
@@ -844,6 +865,7 @@ function isScheduleImportPayload(value: unknown): value is ScheduleImportPayload
     (typeof payload.endDate === 'string' || payload.endDate === null || payload.endDate === undefined) &&
     typeof payload.batchId === 'string' &&
     payload.batchId.trim() !== '' &&
+    (typeof payload.replaceWeekly === 'boolean' || payload.replaceWeekly === undefined) &&
     Array.isArray(payload.rows) &&
     payload.rows.length <= maxScheduleImportRows &&
     payload.rows.every(isScheduleImportInputRow)

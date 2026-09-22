@@ -3,7 +3,8 @@ import { getDayOfWeek, isValidDate, isValidTime } from '../utils/dateTime';
 
 export type ScheduleImportMode = 'dated' | 'weekly';
 export type ScheduleImportStatus = 'ready' | 'duplicate' | 'warning' | 'invalid';
-export type ScheduleImportField = 'date' | 'day' | 'startTime' | 'endTime' | 'title' | 'location' | 'notes' | 'category';
+export type ScheduleImportField = 'date' | 'day' | 'startTime' | 'endTime' | 'title' | 'location' | 'notes' | 'category' | 'homeTeam' | 'awayTeam';
+export type ScheduleImportSourceKind = 'csv' | 'official_game_csv' | 'whatsapp_weekly';
 
 export interface CsvParseResult {
   headers: string[];
@@ -22,6 +23,9 @@ export interface ScheduleImportInputRow {
   location: string | null;
   notes: string | null;
   category: EventCategory | null;
+  sourceKind?: ScheduleImportSourceKind;
+  homeTeam?: string | null;
+  awayTeam?: string | null;
   selected: boolean;
   status: ScheduleImportStatus;
   messages: string[];
@@ -36,6 +40,7 @@ export interface BuildImportRowsOptions {
   startDate?: string;
   endDate?: string | null;
   existingEvents?: Event[];
+  sourceKind?: ScheduleImportSourceKind;
 }
 
 const importCategories: EventCategory[] = [
@@ -135,7 +140,10 @@ export function parseCsv(csv: string): CsvParseResult {
 
   const [headers = [], ...dataRows] = rows;
 
-  return { headers, rows: dataRows };
+  return {
+    headers: headers.map((header) => decodeSafeHtmlEntities(header)),
+    rows: dataRows.map((dataRow) => dataRow.map((cell) => decodeSafeHtmlEntities(cell))),
+  };
 }
 
 export function guessColumnMapping(headers: string[]): ColumnMapping {
@@ -177,7 +185,7 @@ export function buildScheduleImportRows(options: BuildImportRowsOptions): { head
     throw new Error('CSV has too many rows.');
   }
 
-  const mapping = { ...guessColumnMapping(parsed.headers), ...options.mapping };
+  const mapping = { ...enhanceColumnMapping(parsed.headers, guessColumnMapping(parsed.headers)), ...options.mapping };
   const headerIndex = new Map(parsed.headers.map((header, index) => [header, index]));
   const rows = parsed.rows.map((rawRow, index) =>
     normalizeImportRow(rawRow, index + 2, headerIndex, mapping, options),
@@ -223,8 +231,9 @@ export function importRowToEvent({
   }
 
   const category = row.category ?? defaultCategory;
+  const sourceKind = row.sourceKind ?? 'csv';
   const base = {
-    id: `csv-import-${batchId}-${row.sourceRow}-${crypto.randomUUID()}`,
+    id: `schedule-import-${batchId}-${row.sourceRow}-${crypto.randomUUID()}`,
     childId: targetMemberId,
     title: row.title,
     category,
@@ -233,7 +242,7 @@ export function importRowToEvent({
     endTime: row.endTime,
     endsNextDay: false,
     location: row.location,
-    notes: row.notes === null ? `csv_import:${batchId}` : `${row.notes}\ncsv_import:${batchId}`,
+    notes: withImportMetadata(row.notes, batchId, sourceKind),
     requiresTransportation: false,
     pickupTime: null,
     dropoffTime: null,
@@ -299,7 +308,8 @@ export function parseImportDate(value: string): string | null {
 
   const slashMatch = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/u.exec(trimmed);
   const dotMatch = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/u.exec(trimmed);
-  const match = slashMatch ?? dotMatch;
+  const dashMatch = /^(\d{1,2})-(\d{1,2})-(\d{4})$/u.exec(trimmed);
+  const match = slashMatch ?? dotMatch ?? dashMatch;
 
   if (match === null) {
     return null;
@@ -366,6 +376,8 @@ function normalizeImportRow(
   const rawStart = getMappedValue(rawRow, headerIndex, mapping.startTime);
   const rawEnd = getMappedValue(rawRow, headerIndex, mapping.endTime);
   const rawTitle = getMappedValue(rawRow, headerIndex, mapping.title);
+  const rawHomeTeam = getMappedValue(rawRow, headerIndex, mapping.homeTeam);
+  const rawAwayTeam = getMappedValue(rawRow, headerIndex, mapping.awayTeam);
   const rawCategory = getMappedValue(rawRow, headerIndex, mapping.category);
   const date = rawDate === '' ? null : parseImportDate(rawDate);
   const weekday = rawDay === '' ? (date === null ? null : getDayOfWeek(date)) : parseWeekday(rawDay);
@@ -373,6 +385,8 @@ function normalizeImportRow(
   const endTime = rawEnd === '' ? null : parseImportTime(rawEnd);
   const title = rawTitle.trim();
   const category = rawCategory === '' ? null : parseImportCategory(rawCategory);
+  const notes = buildRowNotes(getMappedValue(rawRow, headerIndex, mapping.notes), rawHomeTeam, rawAwayTeam);
+  const sourceKind = options.sourceKind ?? inferSourceKind(headerIndex);
   let status: ScheduleImportStatus = 'ready';
 
   if (options.mode === 'dated' && date === null) {
@@ -413,8 +427,11 @@ function normalizeImportRow(
     endTime,
     title,
     location: getMappedValue(rawRow, headerIndex, mapping.location) || null,
-    notes: getMappedValue(rawRow, headerIndex, mapping.notes) || null,
+    notes,
     category,
+    sourceKind,
+    homeTeam: rawHomeTeam || null,
+    awayTeam: rawAwayTeam || null,
     selected: status !== 'invalid',
     status,
     messages,
@@ -423,6 +440,63 @@ function normalizeImportRow(
 
 function getMappedValue(rawRow: string[], headerIndex: Map<string, number>, header: string | undefined): string {
   return header === undefined ? '' : rawRow[headerIndex.get(header) ?? -1]?.trim() ?? '';
+}
+
+export function withImportMetadata(notes: string | null, batchId: string, sourceKind: ScheduleImportSourceKind): string {
+  const metadata = [`csv_import:${batchId}`, `import_source:${sourceKind}`];
+  const userNotes = notes?.trim() ?? '';
+
+  return userNotes === '' ? metadata.join('\n') : `${userNotes}\n${metadata.join('\n')}`;
+}
+
+export function isImportedFromSource(event: Event, sourceKind: ScheduleImportSourceKind): boolean {
+  return event.notes?.includes(`import_source:${sourceKind}`) ?? false;
+}
+
+function enhanceColumnMapping(headers: string[], mapping: ColumnMapping): ColumnMapping {
+  const enhanced = { ...mapping };
+
+  for (const header of headers) {
+    const normalized = normalizeHeader(header);
+
+    if (enhanced.date === undefined && normalized === 'startdate') {
+      enhanced.date = header;
+    } else if (enhanced.homeTeam === undefined && normalized === 'hometeam') {
+      enhanced.homeTeam = header;
+    } else if (enhanced.awayTeam === undefined && normalized === 'awayteam') {
+      enhanced.awayTeam = header;
+    }
+  }
+
+  return enhanced;
+}
+
+function buildRowNotes(rawNotes: string, rawHomeTeam: string, rawAwayTeam: string): string | null {
+  const parts = [
+    rawNotes.trim(),
+    rawHomeTeam.trim() === '' ? '' : `\u05e7\u05d1\u05d5\u05e6\u05ea \u05d1\u05d9\u05ea: ${rawHomeTeam.trim()}`,
+    rawAwayTeam.trim() === '' ? '' : `\u05e7\u05d1\u05d5\u05e6\u05ea \u05d7\u05d5\u05e5: ${rawAwayTeam.trim()}`,
+  ].filter((part) => part !== '');
+
+  return parts.length === 0 ? null : parts.join('\n');
+}
+
+function inferSourceKind(headerIndex: Map<string, number>): ScheduleImportSourceKind {
+  const headers = Array.from(headerIndex.keys()).map(normalizeHeader);
+
+  return headers.includes('subject') && headers.includes('startdate') && headers.includes('hometeam') && headers.includes('awayteam')
+    ? 'official_game_csv'
+    : 'csv';
+}
+
+function decodeSafeHtmlEntities(value: string): string {
+  return value
+    .replace(/&quot;/giu, '"')
+    .replace(/&amp;/giu, '&')
+    .replace(/&lt;/giu, '<')
+    .replace(/&gt;/giu, '>')
+    .replace(/&#39;/giu, "'")
+    .replace(/&apos;/giu, "'");
 }
 
 function parseWeekday(value: string): number | null {
