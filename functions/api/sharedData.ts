@@ -10,6 +10,14 @@ import type {
 } from '../../src/models';
 import { events as seedEvents } from '../../src/data/events';
 import {
+  getDuplicateKeyForTarget,
+  getDuplicateKeyFromEvent,
+  importRowToEvent,
+  maxScheduleImportRows,
+  type ScheduleImportInputRow,
+  type ScheduleImportMode,
+} from '../../src/services/scheduleImport';
+import {
   canAccessEvent,
   hasPermission,
   isEventInScheduleScope,
@@ -63,7 +71,27 @@ type MutationRequest =
   | { action: 'deleteTransportationPlan'; payload: { eventId: string; occurrenceDate: string } }
   | { action: 'upsertEventReminder'; payload: EventReminder }
   | { action: 'deleteEventReminder'; payload: { eventId: string; occurrenceDate: string } }
-  | { action: 'importLocalData'; payload: Omit<SharedFamilyState, 'initialized'> };
+  | { action: 'importLocalData'; payload: Omit<SharedFamilyState, 'initialized'> }
+  | { action: 'importSchedule'; payload: ScheduleImportPayload };
+
+interface ScheduleImportPayload {
+  targetMemberId: string;
+  defaultCategory: EventCategory;
+  mode: ScheduleImportMode;
+  startDate?: string;
+  endDate?: string | null;
+  batchId: string;
+  rows: ScheduleImportInputRow[];
+}
+
+interface ScheduleImportResult {
+  created: number;
+  skipped: number;
+  duplicates: number;
+  errors: number;
+  batchId: string;
+  eventIds: string[];
+}
 
 const initializedMetaKey = 'shared_data_initialized';
 const maxRequestBytes = 200_000;
@@ -157,6 +185,10 @@ export async function handleMutateSharedState(context: PagesContext, auth?: Auth
   try {
     if (auth !== undefined && !(await canApplyMutation(db, auth, mutation))) {
       return jsonResponse({ error: 'Not authorized.' }, 403);
+    }
+
+    if (mutation.action === 'importSchedule') {
+      return jsonResponse(await applyScheduleImport(db, auth, mutation.payload));
     }
 
     await applyMutation(db, mutation);
@@ -437,6 +469,8 @@ function parseMutationRequest(value: unknown): MutationRequest | null {
       return isTransportationDatePayload(request.payload) ? { action: request.action, payload: request.payload } : null;
     case 'importLocalData':
       return isImportPayload(request.payload) ? { action: request.action, payload: request.payload } : null;
+    case 'importSchedule':
+      return isScheduleImportPayload(request.payload) ? { action: request.action, payload: request.payload } : null;
     default:
       return null;
   }
@@ -454,6 +488,8 @@ async function canApplyMutation(db: D1Database, auth: AuthenticatedSession, muta
     case 'deleteChild':
     case 'importLocalData':
       return false;
+    case 'importSchedule':
+      return hasPermission(authorization, 'edit_schedule');
     case 'upsertEvent':
       return canAccessEvent(authorization, mutation.payload, 'edit_schedule');
     case 'deleteEvent': {
@@ -480,6 +516,75 @@ async function canApplyMutation(db: D1Database, auth: AuthenticatedSession, muta
       return event !== null && canAccessEvent(authorization, event, 'receive_notifications');
     }
   }
+}
+
+async function applyScheduleImport(db: D1Database, auth: AuthenticatedSession | undefined, payload: ScheduleImportPayload): Promise<ScheduleImportResult> {
+  const authorization = auth === undefined ? null : await readAuthorizationContext(db, auth);
+  const nowIso = new Date().toISOString();
+  const customEvents = await readPayloadRows<Event>(db, 'SELECT payload FROM custom_events ORDER BY id', isEvent);
+  const duplicateKeys = new Set([...seedEvents, ...customEvents].map((event) => getDuplicateKeyFromEvent(event)));
+  const statements: D1PreparedStatement[] = [];
+  const eventIds: string[] = [];
+  let skipped = 0;
+  let duplicates = 0;
+  let errors = 0;
+
+  for (const row of payload.rows) {
+    if (!row.selected) {
+      skipped += 1;
+      continue;
+    }
+
+    const event = importRowToEvent({
+      row,
+      targetMemberId: payload.targetMemberId,
+      defaultCategory: payload.defaultCategory,
+      mode: payload.mode,
+      startDate: payload.startDate,
+      endDate: payload.endDate,
+      batchId: payload.batchId,
+      nowIso,
+    });
+
+    if (event === null || !isEvent(event)) {
+      errors += 1;
+      continue;
+    }
+
+    if (authorization !== null && !canAccessEvent(authorization, event, 'edit_schedule')) {
+      errors += 1;
+      continue;
+    }
+
+    const duplicateKey = getDuplicateKeyForTarget(row, payload.targetMemberId, payload.defaultCategory);
+
+    if (duplicateKey !== null && duplicateKeys.has(duplicateKey)) {
+      duplicates += 1;
+      continue;
+    }
+
+    duplicateKeys.add(getDuplicateKeyFromEvent(event));
+    eventIds.push(event.id);
+    statements.push(
+      db
+        .prepare('INSERT INTO custom_events (id, child_id, payload, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET child_id = excluded.child_id, payload = excluded.payload, updated_at = excluded.updated_at')
+        .bind(event.id, event.childId, JSON.stringify(event), event.updatedAt),
+    );
+  }
+
+  if (statements.length > 0) {
+    await db.batch(statements);
+    await markInitialized(db);
+  }
+
+  return {
+    created: statements.length,
+    skipped,
+    duplicates,
+    errors,
+    batchId: payload.batchId,
+    eventIds,
+  };
 }
 
 async function readKnownEventById(db: D1Database, eventId: string): Promise<Event | null> {
@@ -720,6 +825,53 @@ function isImportPayload(value: unknown): value is Omit<SharedFamilyState, 'init
     payload.eventExceptions.every(isEventException) &&
     payload.transportationPlans.every(isTransportationPlan) &&
     (payload.eventReminders === undefined || payload.eventReminders.every(isEventReminder))
+  );
+}
+
+function isScheduleImportPayload(value: unknown): value is ScheduleImportPayload {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const payload = value as Partial<ScheduleImportPayload>;
+
+  return (
+    typeof payload.targetMemberId === 'string' &&
+    payload.targetMemberId.trim() !== '' &&
+    isEventCategory(payload.defaultCategory) &&
+    (payload.mode === 'dated' || payload.mode === 'weekly') &&
+    (typeof payload.startDate === 'string' || payload.startDate === undefined) &&
+    (typeof payload.endDate === 'string' || payload.endDate === null || payload.endDate === undefined) &&
+    typeof payload.batchId === 'string' &&
+    payload.batchId.trim() !== '' &&
+    Array.isArray(payload.rows) &&
+    payload.rows.length <= maxScheduleImportRows &&
+    payload.rows.every(isScheduleImportInputRow)
+  );
+}
+
+function isScheduleImportInputRow(value: unknown): value is ScheduleImportInputRow {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const row = value as Partial<ScheduleImportInputRow>;
+
+  return (
+    typeof row.sourceRow === 'number' &&
+    Number.isInteger(row.sourceRow) &&
+    (typeof row.date === 'string' || row.date === null) &&
+    (typeof row.weekday === 'number' || row.weekday === null) &&
+    typeof row.startTime === 'string' &&
+    (typeof row.endTime === 'string' || row.endTime === null) &&
+    typeof row.title === 'string' &&
+    (typeof row.location === 'string' || row.location === null) &&
+    (typeof row.notes === 'string' || row.notes === null) &&
+    (isEventCategory(row.category) || row.category === null) &&
+    typeof row.selected === 'boolean' &&
+    (row.status === 'ready' || row.status === 'duplicate' || row.status === 'warning' || row.status === 'invalid') &&
+    Array.isArray(row.messages) &&
+    row.messages.every((message) => typeof message === 'string')
   );
 }
 

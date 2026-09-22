@@ -1,4 +1,5 @@
 import type { AuthorizationContext, Child, Event, EventException, EventReminder, TransportationLeg, TransportationPlan } from '../models';
+import type { ScheduleImportInputRow, ScheduleImportMode } from './scheduleImport';
 import { isAuthorizationContext } from './authorization';
 import { loadCustomChildren } from './localChildStorage';
 import { loadCustomEventExceptions } from './localEventExceptionStorage';
@@ -16,6 +17,15 @@ export type SharedFamilyState = {
 };
 
 export type LocalFamilyData = Omit<SharedFamilyState, 'initialized'>;
+
+export interface ScheduleImportResult {
+  created: number;
+  skipped: number;
+  duplicates: number;
+  errors: number;
+  batchId: string;
+  eventIds: string[];
+}
 
 type Fetcher = typeof fetch;
 
@@ -112,6 +122,28 @@ export async function deleteSharedEventReminder(eventId: string, occurrenceDate:
 
 export async function importLocalFamilyData(data: LocalFamilyData, fetcher: Fetcher = fetch): Promise<void> {
   await sendMutation({ action: 'importLocalData', payload: data }, fetcher);
+}
+
+export async function importSharedSchedule(
+  payload: {
+    targetMemberId: string;
+    defaultCategory: Event['category'];
+    mode: ScheduleImportMode;
+    startDate?: string;
+    endDate?: string | null;
+    batchId: string;
+    rows: ScheduleImportInputRow[];
+  },
+  fetcher: Fetcher = fetch,
+): Promise<ScheduleImportResult> {
+  const response = await sendMutation({ action: 'importSchedule', payload }, fetcher);
+  const result = await response.json() as unknown;
+
+  if (!isScheduleImportResult(result)) {
+    throw new Error('Import response was invalid.');
+  }
+
+  return result;
 }
 
 export function upsertSharedEventExceptionInState(exceptions: EventException[], nextException: EventException): EventException[] {
@@ -215,7 +247,7 @@ export function parseSharedFamilyState(value: unknown): SharedFamilyState | null
   };
 }
 
-async function sendMutation(body: unknown, fetcher: Fetcher): Promise<void> {
+async function sendMutation(body: unknown, fetcher: Fetcher): Promise<Response> {
   const response = await fetcher(sharedApiPath, {
     method: 'POST',
     headers: {
@@ -228,6 +260,26 @@ async function sendMutation(body: unknown, fetcher: Fetcher): Promise<void> {
   if (!response.ok) {
     throw new Error('Could not save shared family data.');
   }
+
+  return response;
+}
+
+function isScheduleImportResult(value: unknown): value is ScheduleImportResult {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const result = value as Partial<ScheduleImportResult>;
+
+  return (
+    typeof result.created === 'number' &&
+    typeof result.skipped === 'number' &&
+    typeof result.duplicates === 'number' &&
+    typeof result.errors === 'number' &&
+    typeof result.batchId === 'string' &&
+    Array.isArray(result.eventIds) &&
+    result.eventIds.every((id) => typeof id === 'string')
+  );
 }
 
 function mergeUniqueById<T extends { id: string }>(baseItems: T[], sharedItems: T[]): T[] {

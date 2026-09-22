@@ -6,6 +6,7 @@ import { DaySchedule } from '../components/DaySchedule';
 import { DeleteEventDialog } from '../components/DeleteEventDialog';
 import { EventDetailsDialog } from '../components/EventDetailsDialog';
 import { FamilyActionCenter } from '../components/FamilyActionCenter';
+import { ImportScheduleDialog } from '../components/ImportScheduleDialog';
 import { OccurrenceEditDialog } from '../components/OccurrenceEditDialog';
 import { PwaInstallControl } from '../components/PwaInstallControl';
 import { ScheduleDateFilters } from '../components/ScheduleDateFilters';
@@ -36,6 +37,7 @@ import {
   deleteSharedTransportationPlan,
   hasLocalFamilyData,
   importLocalFamilyData,
+  importSharedSchedule,
   isLocalMigrationConfirmed,
   loadLocalFamilyDataForMigration,
   loadSharedFamilyState,
@@ -47,6 +49,7 @@ import {
   deleteSharedEventReminderInState,
   upsertSharedEventReminderInState,
   type LocalFamilyData,
+  type ScheduleImportResult,
 } from '../services/sharedFamilyData';
 import { getOccurrencesForRange } from '../services/scheduleEngine';
 import {
@@ -106,6 +109,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
   );
   const [showOnlyWithTransportation, setShowOnlyWithTransportation] = useState(false);
   const [isAddEventOpen, setIsAddEventOpen] = useState(false);
+  const [isImportScheduleOpen, setIsImportScheduleOpen] = useState(false);
   const [isAddChildOpen, setIsAddChildOpen] = useState(false);
   const [selectedOccurrence, setSelectedOccurrence] = useState<ScheduleOccurrence | null>(null);
   const [deepLinkMessage, setDeepLinkMessage] = useState<string | null>(null);
@@ -492,6 +496,14 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
     return { ok: true };
   }
 
+  async function handleImportSchedule(payload: Parameters<typeof importSharedSchedule>[0]): Promise<ScheduleImportResult> {
+    const result = await importSharedSchedule(payload);
+
+    await refreshSharedData(true);
+
+    return result;
+  }
+
   async function handleSaveCustomChild(child: Child) {
     const didSave = await runSharedMutation(() => upsertSharedChild(child));
 
@@ -764,9 +776,14 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
             <SharedDataStatusIndicator status={sharedDataStatus} />
             <div className="dashboard-actions">
               {canEditSchedule ? (
-                <button className="add-event-button" type="button" onClick={() => setIsAddEventOpen(true)}>
-                  {t('addEvent')}
-                </button>
+                <>
+                  <button className="add-event-button" type="button" onClick={() => setIsAddEventOpen(true)}>
+                    {t('addEvent')}
+                  </button>
+                  <button className="add-child-button" type="button" onClick={() => setIsImportScheduleOpen(true)}>
+                    {t('importSchedule')}
+                  </button>
+                </>
               ) : null}
               {canManageFamilyMembers ? (
                 <button className="add-child-button" type="button" onClick={() => setIsAddChildOpen(true)}>
@@ -901,6 +918,14 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
         availableCategories={addEventCategories}
         onClose={() => setIsAddEventOpen(false)}
         onSave={handleSaveCustomEvent}
+      />
+      <ImportScheduleDialog
+        isOpen={isImportScheduleOpen}
+        children={activeChildren}
+        availableCategories={addEventCategories}
+        existingEvents={allEvents}
+        onClose={() => setIsImportScheduleOpen(false)}
+        onImport={handleImportSchedule}
       />
       <AddEventDialog
         isOpen={eventToEdit !== null}

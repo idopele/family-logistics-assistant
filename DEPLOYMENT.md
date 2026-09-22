@@ -345,6 +345,59 @@ Manual push validation plan:
 15. Repeat on a second subscribed device.
 16. Verify later Cron runs do not duplicate the same notification on the same device.
 
+## CSV Schedule Import
+
+Version `0.14.4` adds an authenticated CSV schedule import flow for users who can edit schedules. No D1 migration is required for this feature; imported rows are stored as normal custom events in the existing `custom_events` table.
+
+Supported CSV format:
+
+- UTF-8 CSV, including Hebrew text and UTF-8 BOM.
+- Quoted fields, quoted commas, empty cells, CRLF, and LF line endings.
+- MVP limits: about 2 MB per file and up to 1000 data rows.
+- Common columns: `date`, `day`, `start_time`, `end_time`, `title`, `location`, `notes`, and `category`.
+- Date values support `YYYY-MM-DD`, `DD/MM/YYYY`, and `DD.MM.YYYY`.
+- Time values support `HH:mm`, `HH:mm:ss`, and common AM/PM values such as `6:30 PM`.
+
+Import modes:
+
+- Dated schedule: rows with exact dates become one-time custom events.
+- Weekly recurring schedule: rows with weekdays become recurring custom events using the existing recurrence model. The user chooses the effective start date and optional end date.
+- Imported events remain normal editable custom events, appear in the weekly schedule, obey filters and Shared View permissions, support deep links, and can receive reminders.
+
+Authorization behavior:
+
+- The Import schedule control is shown only to users with schedule edit access.
+- The target member must be selected explicitly.
+- The server revalidates authentication, `edit_schedule`, member scope, category scope, row validity, and duplicate candidates before inserting events.
+- Restricted editors cannot import into hidden or unauthorized members/categories by modifying the browser payload.
+
+Duplicate detection:
+
+- Likely duplicates are detected by member, date or weekly recurrence day, start time, and normalized title/category.
+- Duplicate preview rows default to unselected.
+- The server rechecks duplicates and skips obvious duplicate rows instead of importing them silently.
+
+Daniel basketball CSV example:
+
+```csv
+Date,Start Time,End Time,Title,Location,Notes
+2026-10-03,18:30,20:00,Training,Sports hall,Bring shoes
+2026-10-10,18:30,20:00,Training,Sports hall,
+```
+
+Production validation procedure:
+
+1. Sign in as an owner/admin or a user with `edit_schedule` for Daniel and Basketball.
+2. Open Import schedule near the schedule management controls.
+3. Upload the CSV, choose Daniel as the target member, and choose Basketball as the default activity.
+4. Confirm the detected column mapping and preview statuses.
+5. Deselect any duplicate or unwanted rows.
+6. Import selected rows and confirm the result counts.
+7. Click View imported schedule and verify the events appear in the weekly dashboard.
+8. Verify Daniel/Basketball filters show the imported rows.
+9. Verify a restricted viewer can see only imported events inside their Shared View scope.
+10. Open an imported event and confirm existing edit/delete/reminder behavior still works.
+
 ## Manual Deployment Steps
 
 1. Commit the current project state to Git.

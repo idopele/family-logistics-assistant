@@ -1434,12 +1434,27 @@ summary:focus-visible {
 }
 
 .dialog-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: var(--space-3); background: rgb(21 27 37 / 44%); backdrop-filter: blur(6px); }
-.add-event-dialog, .event-details-dialog, .delete-event-dialog, .transportation-dialog { width: min(100%, 42rem); max-height: min(92vh, 54rem); overflow: auto; border: 1px solid rgb(255 255 255 / 70%); border-radius: var(--radius-xl); background: var(--color-surface); box-shadow: var(--shadow-pop); }
+.add-event-dialog, .event-details-dialog, .delete-event-dialog, .transportation-dialog, .import-schedule-dialog { width: min(100%, 42rem); max-height: min(92vh, 54rem); overflow: auto; border: 1px solid rgb(255 255 255 / 70%); border-radius: var(--radius-xl); background: var(--color-surface); box-shadow: var(--shadow-pop); }
+.import-schedule-dialog { width: min(100%, 62rem); }
 .event-details-dialog, .delete-event-dialog, .transportation-dialog { padding: var(--space-5); }
 .event-details-dialog, .delete-event-dialog { width: min(100%, 35rem); }
-.add-event-dialog__header, .transportation-dialog__header, .event-details-dialog__header { display: flex; align-items: start; justify-content: space-between; gap: var(--space-4); }
-.add-event-dialog__header { padding: var(--space-5) var(--space-5) 0; }
-.add-event-dialog__header h2, .event-details-dialog__header h2, .delete-event-dialog h2, .transportation-dialog__header h2 { margin: 0; color: var(--color-text); font-size: clamp(1.2rem, 4vw, 1.55rem); font-weight: 950; line-height: 1.15; }
+.add-event-dialog__header, .transportation-dialog__header, .event-details-dialog__header, .import-schedule-dialog__header { display: flex; align-items: start; justify-content: space-between; gap: var(--space-4); }
+.add-event-dialog__header, .import-schedule-dialog__header { padding: var(--space-5) var(--space-5) 0; }
+.add-event-dialog__header h2, .event-details-dialog__header h2, .delete-event-dialog h2, .transportation-dialog__header h2, .import-schedule-dialog__header h2 { margin: 0; color: var(--color-text); font-size: clamp(1.2rem, 4vw, 1.55rem); font-weight: 950; line-height: 1.15; }
+.import-schedule-dialog__header p { margin: 0.25rem 0 0; color: var(--color-text-muted); font-weight: 850; }
+.import-schedule-dialog__body { display: grid; gap: var(--space-4); padding: var(--space-5); }
+.import-schedule-dialog__controls, .import-schedule-dialog__mapping { display: grid; gap: var(--space-3); }
+.import-schedule-dialog__mapping { border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-soft); padding: var(--space-3); }
+.import-schedule-dialog__mapping h3 { margin: 0; color: var(--color-text); font-size: 0.95rem; font-weight: 950; }
+.import-schedule-dialog__preview { overflow: auto; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.import-schedule-dialog__preview table { width: 100%; min-width: 52rem; border-collapse: collapse; }
+.import-schedule-dialog__preview th, .import-schedule-dialog__preview td { border-bottom: 1px solid var(--color-border); color: var(--color-text-soft); font-size: 0.78rem; font-weight: 850; padding: 0.55rem; text-align: start; }
+.import-schedule-dialog__preview th { background: var(--color-bg-soft); color: var(--color-text); font-weight: 950; }
+.import-schedule-dialog__preview tr[data-status='invalid'] td { color: var(--color-danger); }
+.import-schedule-dialog__preview tr[data-status='duplicate'] td { color: #8a5a12; }
+.import-schedule-dialog__result { align-items: center; border: 1px solid var(--color-primary); border-radius: var(--radius-md); background: var(--color-primary-soft); color: var(--color-primary); display: flex; flex-wrap: wrap; font-weight: 900; gap: var(--space-3); justify-content: space-between; padding: var(--space-3); }
+.import-schedule-dialog__result p { margin: 0; }
+.import-schedule-dialog__actions { display: flex; flex-wrap: wrap; justify-content: end; gap: var(--space-2); padding: 0 var(--space-5) var(--space-5); }
 .transportation-dialog__header p { margin: 0.25rem 0 0; color: var(--color-text-muted); font-weight: 850; }
 .dialog-close-button { min-height: 2.25rem; border-color: var(--color-border); background: var(--color-bg-soft); color: var(--color-text-soft); padding: 0 0.75rem; }
 .dialog-close-button:hover { border-color: var(--color-border-strong); background: #fff; }
@@ -1557,5 +1572,5 @@ summary:focus-visible {
   .family-action-row em, .family-action-row > span, .family-action-row small, .family-action-row b { grid-column: 2; }
   .family-action-row time { grid-column: 1; grid-row: 1 / span 4; }
   .dialog-backdrop { align-items: end; padding: 0; padding-top: env(safe-area-inset-top); }
-  .add-event-dialog, .event-details-dialog, .delete-event-dialog, .transportation-dialog { width: 100%; max-height: calc(100vh - env(safe-area-inset-top)); border-end-end-radius: 0; border-end-start-radius: 0; padding-bottom: max(var(--space-5), env(safe-area-inset-bottom)); }
+  .add-event-dialog, .event-details-dialog, .delete-event-dialog, .transportation-dialog, .import-schedule-dialog { width: 100%; max-height: calc(100vh - env(safe-area-inset-top)); border-end-end-radius: 0; border-end-start-radius: 0; padding-bottom: max(var(--space-5), env(safe-area-inset-bottom)); }
 }
