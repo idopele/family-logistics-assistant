@@ -656,71 +656,56 @@ summary:focus-visible {
 .push-notifications__message {
   color: var(--color-primary);
 }
-.user-management {
-  display: grid;
-  gap: var(--space-2);
-  border-top: 1px solid var(--color-border);
-  padding-top: var(--space-3);
-}
-.user-management h3,
-.user-management p {
-  margin: 0;
-}
-.user-management h3 {
-  color: var(--color-text);
-  font-size: 0.9rem;
-  font-weight: 950;
-}
-.user-management__invite,
-.user-management__list {
-  display: grid;
-  gap: var(--space-2);
-}
-.user-management__invite button,
-.user-management__row button {
-  min-height: 2rem;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: var(--color-bg-soft);
-  color: var(--color-text-soft);
-  font-size: 0.75rem;
-  font-weight: 900;
-  padding: 0 0.65rem;
-}
-.user-management__invite-link {
-  color: var(--color-primary);
-  font-size: 0.78rem;
-  font-weight: 850;
-  overflow-wrap: anywhere;
-}
-.user-management__row {
-  display: grid;
-  gap: 0.2rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-soft);
-  padding: var(--space-2);
-}
-.user-management__row strong,
-.user-management__row span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.user-management__row strong {
-  color: var(--color-text);
-  font-size: 0.84rem;
-  font-weight: 950;
-}
-.user-management__row span {
-  color: var(--color-text-soft);
-  font-size: 0.76rem;
-  font-weight: 820;
-}
-.user-management__row div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-}
+.user-management { display: grid; gap: var(--space-3); border-top: 1px solid var(--color-border); padding-top: var(--space-3); }
+.user-management h3, .user-management h4, .user-management h5, .user-management p { margin: 0; }
+.user-management__header { display: grid; gap: 0.25rem; }
+.user-management__header h3 { color: var(--color-text); font-size: 1rem; font-weight: 950; }
+.user-management__header p, .user-management__role-note, .user-management__empty-note, .user-management__validation-note { color: var(--color-text-soft); font-size: 0.84rem; font-weight: 820; }
+.user-management__invite { display: grid; gap: var(--space-2); }
+.user-management button { min-height: 2rem; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-bg-soft); color: var(--color-text-soft); font-size: 0.76rem; font-weight: 900; padding: 0 0.7rem; }
+.user-management button:hover:not(:disabled) { border-color: var(--color-primary); color: var(--color-primary); }
+.user-management button:disabled { cursor: not-allowed; opacity: 0.54; }
+.user-management__invite-link, .user-management__success { color: var(--color-primary); font-size: 0.78rem; font-weight: 850; overflow-wrap: anywhere; }
+.user-management__workspace { display: grid; gap: var(--space-3); }
+.user-management__user-list { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.user-management__user-button { display: grid; gap: 0.08rem; min-width: min(100%, 10rem); justify-items: start; border-radius: var(--radius-md) !important; padding: var(--space-2) var(--space-3) !important; text-align: start; }
+.user-management__user-button[aria-pressed='true'] { border-color: var(--color-primary); background: var(--color-primary-soft); color: var(--color-primary); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 32%, transparent); }
+.user-management__user-button strong, .user-management__user-button span { min-width: 0; overflow-wrap: anywhere; }
+.user-management__user-button strong { color: var(--color-text); font-size: 0.84rem; font-weight: 950; }
+.user-management__user-button span { color: var(--color-text-muted); font-size: 0.72rem; font-weight: 820; }
+.user-management__detail { display: grid; gap: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); padding: var(--space-3); }
+.user-management__detail-header { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: var(--space-2); }
+.user-management__detail-header h4 { color: var(--color-text); font-size: 1rem; font-weight: 950; }
+.user-management__detail-header p { margin-top: 0.12rem; color: var(--color-text-muted); font-size: 0.78rem; font-weight: 820; overflow-wrap: anywhere; }
+.user-management__detail-header > span { border-radius: 999px; background: var(--color-primary-soft); color: var(--color-primary); font-size: 0.74rem; font-weight: 950; padding: 0.24rem 0.6rem; }
+.user-management__tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.user-management__tabs button[aria-selected='true'], .user-management__presets button[aria-pressed='true'] { border-color: var(--color-primary); background: var(--color-primary); color: #fff; }
+.user-management__tab-panel, .user-management__permissions-panel { display: grid; gap: var(--space-3); }
+.user-management__details-list { display: grid; gap: var(--space-2); margin: 0; }
+.user-management__details-list div { display: grid; gap: 0.08rem; }
+.user-management__details-list dt { color: var(--color-text-muted); font-size: 0.72rem; font-weight: 950; }
+.user-management__details-list dd { margin: 0; color: var(--color-text); font-size: 0.86rem; font-weight: 850; overflow-wrap: anywhere; }
+.user-management__access-summary { display: grid; gap: 0.2rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg-soft); padding: var(--space-2); }
+.user-management__access-summary strong { color: var(--color-text); font-size: 0.8rem; font-weight: 950; }
+.user-management__access-summary span { color: var(--color-text-soft); font-size: 0.8rem; font-weight: 850; overflow-wrap: anywhere; }
+.user-management__presets, .user-management__section-title, .user-management__permission-chips, .user-management__checkbox-grid, .user-management__status-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.user-management__permission-section { display: grid; gap: var(--space-2); }
+.user-management__section-title { align-items: center; justify-content: space-between; }
+.user-management__section-title h5, .user-management__permission-section h5 { color: var(--color-text); font-size: 0.84rem; font-weight: 950; }
+.user-management__section-title div { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.user-management__permission-chips label, .user-management__checkbox-grid label { display: inline-flex; align-items: center; gap: 0.38rem; min-height: 2rem; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-bg-soft); color: var(--color-text-soft); font-size: 0.78rem; font-weight: 880; padding: 0 0.7rem; }
+.user-management__permission-chips label:has(input:checked), .user-management__checkbox-grid label:has(input:checked) { border-color: var(--color-primary); background: var(--color-primary-soft); color: var(--color-primary); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 24%, transparent); }
+.user-management__save { width: fit-content; border-color: var(--color-primary) !important; background: var(--color-primary) !important; color: #fff !important; padding-inline: 1rem !important; }
+.user-management__advanced { display: grid; gap: var(--space-2); }
+.user-management__advanced > button { justify-self: start; }
+.user-management__shared-views, .user-management__shared-view-form, .user-management__shared-view-list { display: grid; gap: var(--space-2); }
+.user-management__shared-view-form fieldset { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2); }
+.user-management__shared-view-form legend { color: var(--color-text); font-size: 0.78rem; font-weight: 950; }
+.user-management__shared-view-form fieldset label { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--color-text-soft); font-size: 0.78rem; font-weight: 850; }
+.user-management__row { display: grid; gap: 0.2rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg-soft); padding: var(--space-2); }
+.user-management__row strong, .user-management__row span { min-width: 0; overflow-wrap: anywhere; }
+.user-management__row strong { color: var(--color-text); font-size: 0.84rem; font-weight: 950; }
+.user-management__row span { color: var(--color-text-soft); font-size: 0.76rem; font-weight: 820; }
 .add-event-button, .add-child-button { padding: 0 1rem; }
 .add-event-button { border-color: var(--color-primary); background: var(--color-primary); color: #fff; box-shadow: 0 0.55rem 1.2rem rgb(36 67 63 / 22%); }
 .add-event-button:hover { transform: translateY(-1px); background: var(--color-primary-hover); }

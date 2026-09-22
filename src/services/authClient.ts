@@ -54,6 +54,14 @@ export interface ManagedSharedView {
   permissions: PermissionScope[];
 }
 
+export interface ManagedUserPermissions {
+  allMembers: boolean;
+  allCategories: boolean;
+  memberIds: string[];
+  categories: EventCategory[];
+  permissions: PermissionScope[];
+}
+
 type Fetcher = typeof fetch;
 
 export async function loadAuthStartupState(fetcher: Fetcher = fetch): Promise<AuthStartupState> {
@@ -151,6 +159,18 @@ export async function saveManagedSharedView(view: Omit<ManagedSharedView, 'id'> 
 
   if (!response.ok) {
     throw new Error('Could not save Shared View.');
+  }
+}
+
+export async function saveManagedUserPermissions(
+  userId: string,
+  permissions: ManagedUserPermissions,
+  fetcher: Fetcher = fetch,
+): Promise<void> {
+  const response = await postJson('/api/auth/users', { action: 'saveUserPermissions', userId, permissions }, fetcher);
+
+  if (!response.ok) {
+    throw new Error('Could not save user permissions.');
   }
 }
 
