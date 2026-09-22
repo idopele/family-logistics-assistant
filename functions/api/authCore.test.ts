@@ -9,6 +9,7 @@ import {
   buildSessionCookie,
   canCreateInvite,
   createInvite,
+  createManagedUser,
   hashPassword,
   inviteLifetimeDays,
   loginUser,
@@ -17,6 +18,7 @@ import {
   normalizeEmail,
   parsePasswordHash,
   passwordIterations,
+  resetManagedUserPassword,
   revokeAllSessionsForUser,
   revokeSession,
   safeAuthPayload,
@@ -24,6 +26,7 @@ import {
   sessionLifetimeDays,
   setUserStatus,
   verifyPassword,
+  type AuthRole,
   type WorkspaceType,
 } from './authCore';
 import { onRequestPost as handleBootstrapRequest } from './auth/bootstrap';
@@ -246,6 +249,113 @@ describe('authCore sessions, bootstrap, invites, and account management', () => 
     db.pushSubscriptions.push({ endpoint: 'https://push.example.test/one', user_id: null, updated_at: nowIso });
     await associatePushSubscriptionWithUser(db, 'https://push.example.test/one', owner.auth.user.id, nowIso);
     expect(db.pushSubscriptions[0]?.user_id).toBe(owner.auth.user.id);
+  });
+
+  it('owner creates a member directly with a hashed password and default-deny authorization', async () => {
+    const db = new FakeAuthD1Database();
+    const owner = await createOwner(db);
+    const user = await createManagedUser({
+      db,
+      actor: owner.auth,
+      email: 'member@example.com',
+      displayName: 'Member',
+      password: 'member password',
+      role: 'member',
+      nowIso,
+    });
+    const storedUser = db.users.find((row) => row.id === user.id);
+    const login = await loginUser({ db, email: 'member@example.com', password: 'member password', nowIso });
+
+    expect(user.role).toBe('member');
+    expect(storedUser?.password_hash).not.toBe('member password');
+    expect(String(storedUser?.password_hash)).toContain('pbkdf2-sha256-v1$100000$');
+    expect(db.memberships.find((membership) => membership.user_id === user.id)?.role).toBe('member');
+    expect(login?.auth.membership.role).toBe('member');
+    expect(safeAuthPayload(login!.auth).authorization.fullAccess).toBe(false);
+    expect(safeAuthPayload(login!.auth).authorization.permissions).toEqual([]);
+  });
+
+  it('owner creates an admin directly and owner role cannot be created through managed user creation', async () => {
+    const db = new FakeAuthD1Database();
+    const owner = await createOwner(db);
+    const admin = await createManagedUser({
+      db,
+      actor: owner.auth,
+      email: 'admin@example.com',
+      displayName: 'Admin',
+      password: 'admin password',
+      role: 'admin',
+      nowIso,
+    });
+
+    expect(admin.role).toBe('admin');
+    await expect(createManagedUser({
+      db,
+      actor: owner.auth,
+      email: 'owner2@example.com',
+      displayName: 'Owner Two',
+      password: 'owner password',
+      role: 'owner' as Exclude<AuthRole, 'owner'>,
+      nowIso,
+    })).rejects.toThrow();
+  });
+
+  it('admin can create members but cannot create admins or duplicate emails', async () => {
+    const db = new FakeAuthD1Database();
+    const owner = await createOwner(db);
+    await createManagedUser({ db, actor: owner.auth, email: 'admin@example.com', displayName: 'Admin', password: 'admin password', role: 'admin', nowIso });
+    const adminLogin = await loginUser({ db, email: 'admin@example.com', password: 'admin password', nowIso });
+
+    const member = await createManagedUser({
+      db,
+      actor: adminLogin!.auth,
+      email: 'member@example.com',
+      displayName: 'Member',
+      password: 'member password',
+      role: 'member',
+      nowIso,
+    });
+
+    expect(member.role).toBe('member');
+    await expect(createManagedUser({ db, actor: adminLogin!.auth, email: 'second-admin@example.com', displayName: 'Admin 2', password: 'admin password', role: 'admin', nowIso })).rejects.toThrow();
+    await expect(createManagedUser({ db, actor: adminLogin!.auth, email: 'member@example.com', displayName: 'Member 2', password: 'member password', role: 'member', nowIso })).rejects.toThrow();
+  });
+
+  it('owner resets member/admin passwords, revokes target sessions, and does not expose hashes', async () => {
+    const db = new FakeAuthD1Database();
+    const owner = await createOwner(db);
+    const member = await createManagedUser({ db, actor: owner.auth, email: 'member@example.com', displayName: 'Member', password: 'old password', role: 'member', nowIso });
+    await createManagedUser({ db, actor: owner.auth, email: 'admin@example.com', displayName: 'Admin', password: 'admin password', role: 'admin', nowIso });
+    const memberLogin = await loginUser({ db, email: 'member@example.com', password: 'old password', nowIso });
+    const ownerLogin = await loginUser({ db, email: 'owner@example.com', password: 'family password', nowIso });
+    const oldHash = String(db.users.find((row) => row.id === member.id)?.password_hash);
+
+    await resetManagedUserPassword(db, owner.auth, member.id, 'new password', nowIso);
+
+    const newHash = String(db.users.find((row) => row.id === member.id)?.password_hash);
+    expect(newHash).not.toBe(oldHash);
+    expect(newHash).not.toBe('new password');
+    await expect(verifyPassword('new password', newHash)).resolves.toBe(true);
+    await expect(loginUser({ db, email: 'member@example.com', password: 'old password', nowIso })).resolves.toBeNull();
+    await expect(loginUser({ db, email: 'member@example.com', password: 'new password', nowIso })).resolves.not.toBeNull();
+    expect(db.sessions.find((session) => session.id === memberLogin?.auth.sessionId)?.revoked_at).toBe(nowIso);
+    expect(db.sessions.find((session) => session.id === ownerLogin?.auth.sessionId)?.revoked_at).toBeNull();
+    await expect(resetManagedUserPassword(db, owner.auth, db.users.find((row) => row.email === 'admin@example.com')!.id as string, 'new admin password', nowIso)).resolves.toBeUndefined();
+    expect(safeAuthPayload(owner.auth)).not.toHaveProperty('password_hash');
+  });
+
+  it('admin reset restrictions and invalid password validation are enforced server-side', async () => {
+    const db = new FakeAuthD1Database();
+    const owner = await createOwner(db);
+    const admin = await createManagedUser({ db, actor: owner.auth, email: 'admin@example.com', displayName: 'Admin', password: 'admin password', role: 'admin', nowIso });
+    const member = await createManagedUser({ db, actor: owner.auth, email: 'member@example.com', displayName: 'Member', password: 'member password', role: 'member', nowIso });
+    const adminLogin = await loginUser({ db, email: 'admin@example.com', password: 'admin password', nowIso });
+
+    await expect(resetManagedUserPassword(db, adminLogin!.auth, member.id, 'new password', nowIso)).resolves.toBeUndefined();
+    await expect(resetManagedUserPassword(db, adminLogin!.auth, owner.auth.user.id, 'owner reset password', nowIso)).rejects.toThrow();
+    await expect(resetManagedUserPassword(db, adminLogin!.auth, admin.id, 'admin reset password', nowIso)).rejects.toThrow();
+    await expect(resetManagedUserPassword(db, adminLogin!.auth, member.id, 'short', nowIso)).rejects.toThrow();
+    await expect(resetManagedUserPassword(db, { ...adminLogin!.auth, membership: { ...adminLogin!.auth.membership, role: 'member' } }, member.id, 'new password', nowIso)).rejects.toThrow();
   });
 });
 
@@ -523,6 +633,15 @@ class FakeStatement {
       const user = this.db.users.find((item) => item.id === this.values[2]);
       if (user !== undefined) {
         user.status = this.values[0];
+      }
+      return;
+    }
+
+    if (query.startsWith('UPDATE app_users SET password_hash')) {
+      const user = this.db.users.find((item) => item.id === this.values[2]);
+      if (user !== undefined) {
+        user.password_hash = this.values[0];
+        user.updated_at = this.values[1];
       }
       return;
     }

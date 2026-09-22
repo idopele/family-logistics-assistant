@@ -1,9 +1,11 @@
 import {
   associatePushSubscriptionWithUser,
+  createManagedUser,
   createInvite,
   getDatabase,
   jsonResponse,
   listWorkspaceUsers,
+  resetManagedUserPassword,
   revokeAllSessionsForUser,
   revokeUnusedInvite,
   setUserStatus,
@@ -72,6 +74,27 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
 
         return jsonResponse({ invite: invite.invite, inviteUrl: invite.inviteUrl });
       }
+      case 'createUser': {
+        if (
+          typeof body.email !== 'string' ||
+          typeof body.displayName !== 'string' ||
+          typeof body.password !== 'string' ||
+          !isInviteRole(body.role)
+        ) {
+          return jsonResponse({ error: 'Invalid request.' }, 400);
+        }
+
+        const user = await createManagedUser({
+          db,
+          actor: guard.auth,
+          email: body.email,
+          displayName: body.displayName,
+          password: body.password,
+          role: body.role,
+        });
+
+        return jsonResponse({ user });
+      }
       case 'setUserStatus': {
         if (typeof body.userId !== 'string' || !isUserStatus(body.status)) {
           return jsonResponse({ error: 'Invalid request.' }, 400);
@@ -87,6 +110,15 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
         }
 
         await revokeAllSessionsForUser(db, body.userId);
+
+        return jsonResponse({ ok: true });
+      }
+      case 'resetUserPassword': {
+        if (typeof body.userId !== 'string' || typeof body.newPassword !== 'string') {
+          return jsonResponse({ error: 'Invalid request.' }, 400);
+        }
+
+        await resetManagedUserPassword(db, guard.auth, body.userId, body.newPassword);
 
         return jsonResponse({ ok: true });
       }

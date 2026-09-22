@@ -523,6 +523,69 @@ export async function setUserStatus(db: D1Database, actor: AuthenticatedSession,
   }
 }
 
+export async function createManagedUser({
+  db,
+  actor,
+  email,
+  displayName,
+  password,
+  role,
+  nowIso = new Date().toISOString(),
+}: {
+  db: D1Database;
+  actor: AuthenticatedSession;
+  email: string;
+  displayName: string;
+  password: string;
+  role: Exclude<AuthRole, 'owner'>;
+  nowIso?: string;
+}): Promise<SafeManagedUser> {
+  if (!canCreateManagedRole(actor.membership.role, role) || !validateDisplayName(displayName) || !validateEmail(email) || !validatePassword(password)) {
+    throw new AuthError('bad_request');
+  }
+
+  if (await readUserByNormalizedEmail(db, normalizeEmail(email)) !== null) {
+    throw new AuthError('duplicate_email');
+  }
+
+  const user = await createUser(db, { email, displayName, password, nowIso });
+  await createMembership(db, actor.workspace.id, user.id, role, nowIso);
+
+  return {
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    status: user.status,
+    role,
+    membershipStatus: 'active',
+    lastLoginAt: null,
+  };
+}
+
+export async function resetManagedUserPassword(
+  db: D1Database,
+  actor: AuthenticatedSession,
+  targetUserId: string,
+  newPassword: string,
+  nowIso = new Date().toISOString(),
+): Promise<void> {
+  if (!canManageUsers(actor.membership.role) || !validatePassword(newPassword)) {
+    throw new AuthError('forbidden');
+  }
+
+  const target = await readManagedUserRole(db, actor.workspace.id, targetUserId);
+
+  if (target === null || !canResetPasswordForRole(actor.membership.role, target.role)) {
+    throw new AuthError('forbidden');
+  }
+
+  await db
+    .prepare('UPDATE app_users SET password_hash = ?, updated_at = ? WHERE id = ?')
+    .bind(await hashPassword(newPassword), nowIso, targetUserId)
+    .run();
+  await revokeAllSessionsForUser(db, targetUserId, nowIso);
+}
+
 export async function revokeUnusedInvite(db: D1Database, actor: AuthenticatedSession, inviteId: string, nowIso = new Date().toISOString()): Promise<void> {
   if (!canManageUsers(actor.membership.role)) {
     throw new AuthError('forbidden');
@@ -764,6 +827,37 @@ async function wouldDisableOnlyOwner(db: D1Database, workspaceId: string, target
     .first<{ role: AuthRole }>();
 
   return targetMembership !== null && (row?.count ?? 0) === 0;
+}
+
+async function readManagedUserRole(db: D1Database, workspaceId: string, targetUserId: string): Promise<{ role: AuthRole } | null> {
+  return db
+    .prepare('SELECT role FROM workspace_memberships WHERE workspace_id = ? AND user_id = ?')
+    .bind(workspaceId, targetUserId)
+    .first<{ role: AuthRole }>();
+}
+
+function canResetPasswordForRole(actorRole: AuthRole, targetRole: AuthRole): boolean {
+  if (actorRole === 'owner') {
+    return targetRole === 'admin' || targetRole === 'member' || targetRole === 'viewer';
+  }
+
+  if (actorRole === 'admin') {
+    return targetRole === 'member' || targetRole === 'viewer';
+  }
+
+  return false;
+}
+
+function canCreateManagedRole(actorRole: AuthRole, targetRole: AuthRole): targetRole is 'admin' | 'member' | 'viewer' {
+  if (actorRole === 'owner') {
+    return targetRole === 'admin' || targetRole === 'member' || targetRole === 'viewer';
+  }
+
+  if (actorRole === 'admin') {
+    return targetRole === 'member' || targetRole === 'viewer';
+  }
+
+  return false;
 }
 
 function assertValidAccountInput(displayName: string, email: string, password: string): void {

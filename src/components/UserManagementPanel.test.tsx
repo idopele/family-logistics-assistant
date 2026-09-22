@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { translations } from '../i18n';
 import type { AuthSession, ManagedSharedView, ManagedUserPermissions } from '../services/authClient';
-import { saveManagedUserPermissions } from '../services/authClient';
-import { UserManagementPanel, deriveEffectiveUserPermissions, normalizeDraftDependencies, normalizeUserPermissions } from './UserManagementPanel';
+import { createManagedUser, resetManagedUserPassword, saveManagedUserPermissions } from '../services/authClient';
+import { UserManagementPanel, deriveEffectiveUserPermissions, normalizeDraftDependencies, normalizeUserPermissions, validatePasswordPair } from './UserManagementPanel';
 
 const ownerSession: AuthSession = {
   authenticated: true,
@@ -44,8 +44,11 @@ describe('UserManagementPanel Step 14.2 permissions UX', () => {
     expect(translations.he.permissions).toBeTruthy();
     expect(translations.he.presetNoAccess).toBeTruthy();
     expect(translations.en.permissions).toBe('Permissions');
+    expect(translations.en.security).toBe('Security');
     expect(translations.en.presetViewOnly).toBe('View only');
     expect(translations.en.savePermissions).toBe('Save permissions');
+    expect(translations.en.resetPassword).toBe('Reset password');
+    expect(translations.en.createUserDirectly).toBe('Create user directly');
   });
 
   it('derives the effective union from existing shared views', () => {
@@ -151,5 +154,54 @@ describe('UserManagementPanel Step 14.2 permissions UX', () => {
       categories: ['school'],
       permissions: ['view_schedule'],
     }, fetcher as typeof fetch)).rejects.toThrow('Could not save user permissions.');
+  });
+
+  it('validates password confirmation and length locally', () => {
+    const t = (key: keyof typeof translations.en) => translations.en[key];
+
+    expect(validatePasswordPair('', '', t)).toBe(translations.en.passwordRequired);
+    expect(validatePasswordPair('abcdefghij', 'different-password', t)).toBe(translations.en.passwordsDoNotMatch);
+    expect(validatePasswordPair('short', 'short', t)).toBe(translations.en.passwordPolicy);
+    expect(validatePasswordPair('valid password', 'valid password', t)).toBeNull();
+  });
+
+  it('sends direct user creation through the auth users adapter without owner role', async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({
+      user: {
+        id: 'user-member',
+        email: 'member@example.com',
+        displayName: 'Member',
+        status: 'active',
+        role: 'member',
+        membershipStatus: 'active',
+        lastLoginAt: null,
+      },
+    }), { status: 200 }));
+
+    await createManagedUser('Member', 'member@example.com', 'member', 'member password', fetcher as typeof fetch);
+
+    expect(fetcher).toHaveBeenCalledWith('/api/auth/users', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'createUser',
+        displayName: 'Member',
+        email: 'member@example.com',
+        role: 'member',
+        password: 'member password',
+      }),
+    }));
+  });
+
+  it('sends password reset through the auth users adapter without hashes', async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+
+    await resetManagedUserPassword('user-member', 'new password', fetcher as typeof fetch);
+
+    expect(fetcher).toHaveBeenCalledWith('/api/auth/users', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ action: 'resetUserPassword', userId: 'user-member', newPassword: 'new password' }),
+    }));
+    expect(JSON.stringify(fetcher.mock.calls)).not.toContain('password_hash');
+    expect(JSON.stringify(fetcher.mock.calls)).not.toContain('pbkdf2-sha256-v1');
   });
 });

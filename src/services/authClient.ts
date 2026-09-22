@@ -138,6 +138,23 @@ export async function createAuthInvite(email: string, role: Exclude<AuthRole, 'o
   return payload.inviteUrl;
 }
 
+export async function createManagedUser(
+  displayName: string,
+  email: string,
+  role: Exclude<AuthRole, 'owner'>,
+  password: string,
+  fetcher: Fetcher = fetch,
+): Promise<ManagedUser> {
+  const response = await postJson('/api/auth/users', { action: 'createUser', displayName, email, role, password }, fetcher);
+  const payload = await response.json() as unknown;
+
+  if (!response.ok || !isManagedUserCreatedResponse(payload)) {
+    throw new Error('Could not create user.');
+  }
+
+  return payload.user;
+}
+
 export async function setManagedUserStatus(userId: string, status: AuthUserStatus, fetcher: Fetcher = fetch): Promise<void> {
   const response = await postJson('/api/auth/users', { action: 'setUserStatus', userId, status }, fetcher);
 
@@ -151,6 +168,14 @@ export async function revokeManagedUserSessions(userId: string, fetcher: Fetcher
 
   if (!response.ok) {
     throw new Error('Could not revoke sessions.');
+  }
+}
+
+export async function resetManagedUserPassword(userId: string, newPassword: string, fetcher: Fetcher = fetch): Promise<void> {
+  const response = await postJson('/api/auth/users', { action: 'resetUserPassword', userId, newPassword }, fetcher);
+
+  if (!response.ok) {
+    throw new Error('Could not reset password.');
   }
 }
 
@@ -259,6 +284,10 @@ function isManagedUser(value: unknown): value is ManagedUser {
 
 function isInviteCreatedResponse(value: unknown): value is { inviteUrl: string } {
   return typeof value === 'object' && value !== null && typeof (value as { inviteUrl?: unknown }).inviteUrl === 'string';
+}
+
+function isManagedUserCreatedResponse(value: unknown): value is { user: ManagedUser } {
+  return typeof value === 'object' && value !== null && isManagedUser((value as { user?: unknown }).user);
 }
 
 function isManagedSharedView(value: unknown): value is ManagedSharedView {

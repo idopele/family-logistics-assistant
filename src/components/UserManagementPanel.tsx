@@ -4,7 +4,9 @@ import { getEventCategoryLabel } from '../data/eventCategories';
 import { useUiPreferences, type TranslationKey } from '../i18n';
 import {
   createAuthInvite,
+  createManagedUser,
   loadManagedUsers,
+  resetManagedUserPassword,
   revokeManagedUserSessions,
   saveManagedSharedView,
   saveManagedUserPermissions,
@@ -17,7 +19,7 @@ import {
 } from '../services/authClient';
 import type { EventCategory, PermissionScope } from '../models';
 
-type UserManagementTab = 'details' | 'permissions' | 'status';
+type UserManagementTab = 'details' | 'permissions' | 'security' | 'status';
 type PermissionPreset = 'none' | 'view' | 'edit' | 'operational';
 
 type PermissionDraft = ManagedUserPermissions & { preset: PermissionPreset | null };
@@ -32,6 +34,13 @@ export function UserManagementPanel({ session }: { session: AuthSession }) {
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Exclude<AuthRole, 'owner'>>('member');
+  const [createDisplayName, setCreateDisplayName] = useState('');
+  const [createEmail, setCreateEmail] = useState('');
+  const [createRole, setCreateRole] = useState<Exclude<AuthRole, 'owner'>>('member');
+  const [createPassword, setCreatePassword] = useState('');
+  const [createPasswordConfirmation, setCreatePasswordConfirmation] = useState('');
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetPasswordConfirmation, setResetPasswordConfirmation] = useState('');
   const [sharedViewDraft, setSharedViewDraft] = useState(createEmptySharedViewDraft());
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +115,34 @@ export function UserManagementPanel({ session }: { session: AuthSession }) {
     }
   }
 
+  async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+
+    const passwordError = validatePasswordPair(createPassword, createPasswordConfirmation, t);
+
+    if (passwordError !== null) {
+      setError(passwordError);
+      return;
+    }
+
+    try {
+      const user = await createManagedUser(createDisplayName, createEmail, createRole, createPassword);
+      await refreshUsers();
+      setSelectedUserId(user.id);
+      setActiveTab('permissions');
+      setCreateDisplayName('');
+      setCreateEmail('');
+      setCreateRole('member');
+      setCreatePassword('');
+      setCreatePasswordConfirmation('');
+      setSuccessMessage(t('userCreatedConfigurePermissions'));
+    } catch {
+      setError(t('unableToCreateUser'));
+    }
+  }
+
   async function handleSetStatus(userId: string, status: 'active' | 'disabled') {
     setError(null);
     setSuccessMessage(null);
@@ -127,6 +164,35 @@ export function UserManagementPanel({ session }: { session: AuthSession }) {
       setSuccessMessage(t('permissionsSavedSuccessfully'));
     } catch {
       setError(t('sharedDataSaveError'));
+    }
+  }
+
+  async function handleResetPassword() {
+    if (selectedUser === null) {
+      return;
+    }
+
+    const passwordError = validatePasswordPair(resetPassword, resetPasswordConfirmation, t);
+
+    if (passwordError !== null) {
+      setError(passwordError);
+      return;
+    }
+
+    if (!window.confirm(t('resetPasswordConfirmationMessage'))) {
+      return;
+    }
+
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      await resetManagedUserPassword(selectedUser.id, resetPassword);
+      setResetPassword('');
+      setResetPasswordConfirmation('');
+      setSuccessMessage(t('passwordResetSuccess'));
+    } catch {
+      setError(t('unableToResetPassword'));
     }
   }
 
@@ -206,21 +272,53 @@ export function UserManagementPanel({ session }: { session: AuthSession }) {
         <p>{t('userPermissionsIntro')}</p>
       </div>
 
-      <form className="user-management__invite" onSubmit={(event) => void handleCreateInvite(event)}>
-        <label className="form-field">
-          <span>{t('email')}</span>
-          <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
-        </label>
-        <label className="form-field">
-          <span>{t('role')}</span>
-          <select value={role} onChange={(event) => setRole(event.target.value as Exclude<AuthRole, 'owner'>)}>
-            <option value="admin">{t('admin')}</option>
-            <option value="member">{t('member')}</option>
-            <option value="viewer">{t('viewer')}</option>
-          </select>
-        </label>
-        <button type="submit">{t('createInvite')}</button>
-      </form>
+      <div className="user-management__onboarding">
+        <form className="user-management__create-user" onSubmit={(event) => void handleCreateUser(event)}>
+          <h4>{t('createUserDirectly')}</h4>
+          <label className="form-field">
+            <span>{t('displayName')}</span>
+            <input value={createDisplayName} onChange={(event) => setCreateDisplayName(event.target.value)} />
+          </label>
+          <label className="form-field">
+            <span>{t('email')}</span>
+            <input type="email" value={createEmail} onChange={(event) => setCreateEmail(event.target.value)} />
+          </label>
+          <label className="form-field">
+            <span>{t('role')}</span>
+            <select value={createRole} onChange={(event) => setCreateRole(event.target.value as Exclude<AuthRole, 'owner'>)}>
+              {getCreatableRoles(session.membership.role).map((availableRole) => (
+                <option key={availableRole} value={availableRole}>{t(availableRole)}</option>
+              ))}
+            </select>
+          </label>
+          <label className="form-field">
+            <span>{t('password')}</span>
+            <input type="password" value={createPassword} onChange={(event) => setCreatePassword(event.target.value)} />
+          </label>
+          <label className="form-field">
+            <span>{t('confirmPassword')}</span>
+            <input type="password" value={createPasswordConfirmation} onChange={(event) => setCreatePasswordConfirmation(event.target.value)} />
+          </label>
+          <button type="submit">{t('createUser')}</button>
+        </form>
+
+        <form className="user-management__invite" onSubmit={(event) => void handleCreateInvite(event)}>
+          <h4>{t('inviteUser')}</h4>
+          <label className="form-field">
+            <span>{t('email')}</span>
+            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+          </label>
+          <label className="form-field">
+            <span>{t('role')}</span>
+            <select value={role} onChange={(event) => setRole(event.target.value as Exclude<AuthRole, 'owner'>)}>
+              {getCreatableRoles(session.membership.role).map((availableRole) => (
+                <option key={availableRole} value={availableRole}>{t(availableRole)}</option>
+              ))}
+            </select>
+          </label>
+          <button type="submit">{t('createInvite')}</button>
+        </form>
+      </div>
 
       {inviteUrl !== null ? <p className="user-management__invite-link">{t('inviteLink')}: {inviteUrl}</p> : null}
       {error !== null ? <p className="auth-form__error">{error}</p> : null}
@@ -270,6 +368,16 @@ export function UserManagementPanel({ session }: { session: AuthSession }) {
                 onPreset={applyPreset}
                 onSave={() => void handleSavePermissions()}
                 isSaveDisabled={isSaveDisabled}
+              />
+            ) : null}
+            {activeTab === 'security' ? (
+              <SecurityTab
+                user={selectedUser}
+                password={resetPassword}
+                passwordConfirmation={resetPasswordConfirmation}
+                onPasswordChange={setResetPassword}
+                onPasswordConfirmationChange={setResetPasswordConfirmation}
+                onResetPassword={() => void handleResetPassword()}
               />
             ) : null}
             {activeTab === 'status' ? (
@@ -444,6 +552,47 @@ function PermissionChipSection({
   );
 }
 
+function SecurityTab({
+  user,
+  password,
+  passwordConfirmation,
+  onPasswordChange,
+  onPasswordConfirmationChange,
+  onResetPassword,
+}: {
+  user: ManagedUser;
+  password: string;
+  passwordConfirmation: string;
+  onPasswordChange: (password: string) => void;
+  onPasswordConfirmationChange: (password: string) => void;
+  onResetPassword: () => void;
+}) {
+  const { t } = useUiPreferences();
+
+  return (
+    <section className="user-management__tab-panel user-management__security-panel">
+      <p>{t('passwordResetHelp')}</p>
+      <label className="form-field">
+        <span>{t('newPassword')}</span>
+        <input type="password" value={password} autoComplete="new-password" onChange={(event) => onPasswordChange(event.target.value)} />
+      </label>
+      <label className="form-field">
+        <span>{t('confirmNewPassword')}</span>
+        <input
+          type="password"
+          value={passwordConfirmation}
+          autoComplete="new-password"
+          onChange={(event) => onPasswordConfirmationChange(event.target.value)}
+        />
+      </label>
+      <button className="user-management__save" type="button" onClick={onResetPassword}>
+        {t('resetPassword')}
+      </button>
+      <small>{user.displayName} · {t(user.role)}</small>
+    </section>
+  );
+}
+
 function StatusTab({
   user,
   onSetStatus,
@@ -576,7 +725,7 @@ function AdvancedSharedViewsEditor({
   );
 }
 
-const userManagementTabs: UserManagementTab[] = ['details', 'permissions', 'status'];
+const userManagementTabs: UserManagementTab[] = ['details', 'permissions', 'security', 'status'];
 const permissionPresets: PermissionPreset[] = ['none', 'view', 'edit', 'operational'];
 
 const presetTranslationKeys: Record<PermissionPreset, TranslationKey> = {
@@ -618,6 +767,32 @@ const simpleActionPermissions: PermissionScope[] = [
 ];
 
 const sharedViewPermissions: PermissionScope[] = simpleActionPermissions;
+const minimumManagedPasswordLength = 10;
+const maximumManagedPasswordLength = 256;
+
+function getCreatableRoles(actorRole: AuthRole): Array<Exclude<AuthRole, 'owner'>> {
+  return actorRole === 'owner' ? ['admin', 'member', 'viewer'] : ['member', 'viewer'];
+}
+
+export function validatePasswordPair(
+  password: string,
+  passwordConfirmation: string,
+  t: ReturnType<typeof useUiPreferences>['t'],
+): string | null {
+  if (password === '' || passwordConfirmation === '') {
+    return t('passwordRequired');
+  }
+
+  if (password !== passwordConfirmation) {
+    return t('passwordsDoNotMatch');
+  }
+
+  if (password.length < minimumManagedPasswordLength || password.length > maximumManagedPasswordLength) {
+    return t('passwordPolicy');
+  }
+
+  return null;
+}
 
 function createNoAccessDraft(): PermissionDraft {
   return {
