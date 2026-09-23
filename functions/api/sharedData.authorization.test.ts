@@ -89,6 +89,35 @@ describe('shared data authorization filtering', () => {
     expect(filtered.transportationPlans).toEqual([hiddenTransportation]);
     expect(filtered.eventReminders).toEqual([hiddenReminder]);
   });
+
+  it('redacts hidden participants from visible shared events', () => {
+    const sharedEvent: Event = {
+      ...visibleEvent,
+      id: 'shared-family-dinner',
+      category: 'family',
+      participantIds: ['daniel', 'emanuel'],
+      title: 'Family dinner',
+    };
+    const filtered = filterSharedStateForAuthorization(
+      {
+        children: [visibleChild, hiddenChild],
+        events: [sharedEvent],
+        exceptions: [],
+        transportationPlans: [],
+        eventReminders: [],
+      },
+      {
+        fullAccess: false,
+        permissions: ['view_schedule'],
+        scheduleScope: { allMembers: false, memberIds: ['daniel'], allCategories: false, categories: ['family'] },
+      },
+    );
+
+    expect(filtered.events).toHaveLength(1);
+    expect(filtered.events[0]?.participantIds).toEqual(['daniel']);
+    expect(JSON.stringify(filtered)).not.toContain('emanuel');
+    expect(JSON.stringify(filtered)).not.toContain('עמנואל');
+  });
 });
 
 function baseState() {

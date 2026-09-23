@@ -9,6 +9,7 @@ import { ReminderIndicator } from './ReminderIndicator';
 interface EventCardProps {
   occurrence: ScheduleOccurrence;
   child: Child;
+  participantNames?: string[];
   isEditable?: boolean;
   isRecurring?: boolean;
   transportationPlan?: TransportationPlan | null;
@@ -20,6 +21,7 @@ interface EventCardProps {
 export function EventCard({
   occurrence,
   child,
+  participantNames,
   isEditable = false,
   isRecurring = false,
   transportationPlan = null,
@@ -30,6 +32,7 @@ export function EventCard({
   const { t } = useUiPreferences();
   const style = { '--child-color': child.color } as CSSProperties;
   const timeLabel = occurrence.endTime === null ? occurrence.startTime : `${occurrence.startTime}-${occurrence.endTime}`;
+  const participantLabel = formatParticipantLabel(participantNames ?? [child.name]);
   const content = (
     <>
       <div className="event-card__topline">
@@ -39,7 +42,7 @@ export function EventCard({
         {isRecurring ? <span className="event-card__recurring">{t('recurringBadge')}</span> : null}
         <span className="event-card__badge">{getEventCategoryLabel(occurrence, language)}</span>
       </div>
-      <div className="event-card__child">{child.name}</div>
+      <div className="event-card__child">{participantLabel}</div>
       <h3 className="event-card__title">{occurrence.title}</h3>
       {occurrence.location !== null ? <p className="event-card__location">{occurrence.location}</p> : null}
       {transportationPlan !== null ? <TransportationPlanSummary plan={transportationPlan} /> : null}
@@ -60,6 +63,16 @@ export function EventCard({
       {content}
     </article>
   );
+}
+
+function formatParticipantLabel(names: string[]): string {
+  const uniqueNames = Array.from(new Set(names));
+
+  if (uniqueNames.length <= 2) {
+    return uniqueNames.join(' · ');
+  }
+
+  return `${uniqueNames.slice(0, 2).join(' · ')} · +${uniqueNames.length - 2}`;
 }
 
 function TransportationPlanSummary({ plan }: { plan: TransportationPlan }) {

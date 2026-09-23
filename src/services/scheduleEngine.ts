@@ -1,4 +1,5 @@
 import type { Event, EventException, ScheduleOccurrence } from '../models';
+import { getEventParticipantIds } from './eventParticipants';
 import { addDays, compareDates, daysBetween, getDayOfWeek, isValidDate, monthsBetween, parseDateParts } from '../utils/dateTime';
 
 export function getOccurrencesForDate(
@@ -107,6 +108,7 @@ function toOccurrence(event: Event, date: string): ScheduleOccurrence {
   return {
     eventId: event.id,
     childId: event.childId,
+    participantIds: getEventParticipantIds(event),
     date,
     title: event.title,
     category: event.category,

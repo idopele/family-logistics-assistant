@@ -6,6 +6,7 @@ import type {
   TransportationLeg,
   TransportationPlan,
 } from '../models';
+import { getOccurrenceParticipantIds } from './eventParticipants';
 import { addDays, compareDates } from '../utils/dateTime';
 
 export const TRANSPORT_CONFLICT_WINDOW_MINUTES = 30;
@@ -138,7 +139,8 @@ function toAssignment(
     time: leg.time,
     minutesFromMidnight: timeToMinutes(leg.time),
     eventTitle: occurrence.title,
-    childNames: leg.passengerChildIds.map((childId) => childNamesById.get(childId) ?? childId),
+    childNames: Array.from(new Set([...leg.passengerChildIds, ...getOccurrenceParticipantIds(occurrence)]))
+      .map((childId) => childNamesById.get(childId) ?? childId),
   };
 }
 

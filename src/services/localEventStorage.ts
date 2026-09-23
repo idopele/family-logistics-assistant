@@ -91,6 +91,8 @@ function isStoredEvent(value: unknown): value is Event {
 
   return (
     typeof event.id === 'string' &&
+    (event.participantIds === undefined ||
+      (Array.isArray(event.participantIds) && event.participantIds.length > 0 && event.participantIds.every((participantId) => typeof participantId === 'string' && participantId.trim() !== ''))) &&
     typeof event.childId === 'string' &&
     typeof event.title === 'string' &&
     isEventCategory(event.category) &&

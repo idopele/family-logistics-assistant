@@ -438,6 +438,46 @@ Daniel weekly WhatsApp schedule workflow:
 8. Leave Update weekly schedule enabled when replacing a prior WhatsApp weekly training import for the same Daniel/Basketball/week.
 9. Confirm replacement safety: only prior `whatsapp_weekly` imported training rows for that member/category/week are replaced. Official game CSV events, manual events, school, dance, other members, and basketball events with unknown source are preserved.
 
+## Multi-Participant Events
+
+Version `0.14.6` adds multi-participant event support without a D1 migration. Custom events are already stored as JSON payloads in `custom_events`, so `participantIds` is additive. Legacy events that only have `childId` are interpreted as `participantIds = [childId]`.
+
+Data model:
+
+- `participantIds` is the canonical participant list for new and edited events.
+- `childId` remains as the first participant for backwards compatibility with existing event IDs, reminders, transportation, deep links, and older stored payloads.
+- Seed events and old local/D1 events continue to behave as single-participant events.
+- CSV and weekly pasted imports remain simple one-target imports and create `participantIds = [targetMemberId]`.
+
+Permission semantics:
+
+- View access requires an allowed category and at least one authorized participant.
+- Edit access for restricted editors requires the allowed category and edit access to every current/requested participant.
+- Owner/admin access is unchanged.
+- `/api/shared` redacts unauthorized participant IDs before sending events to the browser. Hidden participant IDs/names must not appear in cards, details, Action Center, filters, summaries, or API JSON.
+
+Filtering behavior:
+
+- The participant filter has an explicit All chip.
+- Selecting one or more participants makes All inactive.
+- Choosing All clears individual participant filtering and returns to all authorized participants.
+- A shared event matches if any visible participant is selected and is rendered once.
+
+Production validation procedure:
+
+1. Sign in as owner/admin.
+2. Create one Family event with Daniel and Emanuel selected.
+3. Verify it appears once in the schedule.
+4. Filter Daniel only: event remains visible.
+5. Filter Emanuel only: same event remains visible.
+6. Filter an unrelated participant only: event is hidden.
+7. Edit the same event and add/remove a participant. Confirm the same event ID is updated, not duplicated.
+8. Sign in as a restricted viewer with access only to Daniel and the event category.
+9. Verify the shared event is visible but only Daniel is displayed.
+10. Confirm Event Details and Action Center do not reveal Emanuel.
+11. Try a restricted edit without access to all participants and verify it is rejected.
+12. Verify existing reminders, transportation plans, deep links, CSV imports, and WhatsApp weekly imports still work.
+
 ## Manual Deployment Steps
 
 1. Commit the current project state to Git.

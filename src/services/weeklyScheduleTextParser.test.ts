@@ -90,6 +90,7 @@ describe('weekly WhatsApp schedule parser', () => {
     expect(event?.date).toBe('2026-09-27');
     expect(event?.recurrence).toBeNull();
     expect(event?.category).toBe('basketball');
+    expect(event?.participantIds).toEqual(['daniel']);
     expect(event?.notes).toContain('import_source:whatsapp_weekly');
     expect(getOccurrencesForRange([event!], [], '2026-09-27', '2026-09-27')).toHaveLength(1);
   });

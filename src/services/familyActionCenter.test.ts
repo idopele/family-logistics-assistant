@@ -293,6 +293,23 @@ describe('familyActionCenter', () => {
     expect(data.remainingNonSchoolOccurrences).toHaveLength(1);
   });
 
+  it('does not leak hidden participants from sanitized shared events', () => {
+    const data = buildFamilyActionCenterData({
+      events: [makeEvent({ participantIds: ['daniel'], childId: 'daniel', title: 'Family dinner' })],
+      exceptions: [],
+      transportationPlans: [],
+      children: children.filter((child) => child.id === 'daniel'),
+      today: '2026-09-07',
+      currentTime: '12:00',
+    });
+
+    const serialized = JSON.stringify(data);
+
+    expect(serialized).toContain('daniel');
+    expect(serialized).not.toContain('emanuel');
+    expect(serialized).not.toContain('עמנואל');
+  });
+
   it('does not depend on selected dashboard week', () => {
     const first = buildFamilyActionCenterData({
       events: [makeEvent()],

@@ -331,6 +331,8 @@ function isEvent(value: unknown): value is Event {
   return (
     typeof event.id === 'string' &&
     event.id.trim() !== '' &&
+    (event.participantIds === undefined ||
+      (Array.isArray(event.participantIds) && event.participantIds.length > 0 && event.participantIds.every((participantId) => typeof participantId === 'string' && participantId.trim() !== ''))) &&
     typeof event.childId === 'string' &&
     event.childId.trim() !== '' &&
     typeof event.title === 'string' &&

@@ -134,6 +134,7 @@ export function ScheduleFilters({
   );
   const hasMemberOverflow = children.length > maxCompactMemberCount;
   const hasCategoryOverflow = authorizedCategories.length > maxCompactCategoryCount;
+  const areAllMembersSelected = selectedMemberIds.length === authorizedMemberIds.length;
 
   function toggleMember(memberId: string) {
     onMemberSelectionChange(toggleSelection(selectedMemberIds, memberId, authorizedMemberIds));
@@ -148,15 +149,27 @@ export function ScheduleFilters({
       <div className="schedule-filters__compact-group" data-filter-group="members">
         <span className="schedule-filters__label">{t('members')}</span>
         <div className="schedule-filters__chips">
+          <button
+            className="schedule-filters__button schedule-filters__button--all"
+            type="button"
+            aria-pressed={areAllMembersSelected}
+            data-selected={areAllMembersSelected ? 'true' : 'false'}
+            onClick={() => onMemberSelectionChange(authorizedMemberIds)}
+          >
+            <span aria-hidden="true">{areAllMembersSelected ? '✓' : ''}</span>
+            {t('all')}
+          </button>
           {visibleMembers.map((filter) => (
           <button
             className="schedule-filters__button schedule-filters__button--person"
             type="button"
             aria-pressed={selectedMemberSet.has(filter.id)}
+            data-selected={selectedMemberSet.has(filter.id) ? 'true' : 'false'}
             key={filter.id}
             style={{ '--person-color': filter.color } as CSSProperties}
             onClick={() => toggleMember(filter.id)}
           >
+            <span className="schedule-filters__check" aria-hidden="true">{selectedMemberSet.has(filter.id) ? '✓' : ''}</span>
             <span className="schedule-filters__person-avatar" aria-hidden="true">
               {filter.name.trim().charAt(0)}
             </span>

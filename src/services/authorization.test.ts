@@ -65,6 +65,22 @@ describe('authorization helpers', () => {
     expect(isEventAuthorized(authorization, emanuelDance)).toBe(true);
     expect(hasPermission(authorization, 'view_transportation')).toBe(true);
   });
+
+  it('allows viewing a shared event through any authorized participant', () => {
+    const authorization = restricted(['view_schedule'], ['daniel'], ['family']);
+    const sharedEvent = { ...danielBasketball, category: 'family' as const, participantIds: ['daniel', 'emanuel'] };
+
+    expect(isEventAuthorized(authorization, sharedEvent)).toBe(true);
+  });
+
+  it('requires edit access to all participants in a shared event', () => {
+    const danielOnlyEditor = restricted(['view_schedule', 'edit_schedule'], ['daniel'], ['family']);
+    const bothEditor = restricted(['view_schedule', 'edit_schedule'], ['daniel', 'emanuel'], ['family']);
+    const sharedEvent = { ...danielBasketball, category: 'family' as const, participantIds: ['daniel', 'emanuel'] };
+
+    expect(canEditEvent(danielOnlyEditor, sharedEvent)).toBe(false);
+    expect(canEditEvent(bothEditor, sharedEvent)).toBe(true);
+  });
 });
 
 function restricted(

@@ -18,6 +18,7 @@ import {
   type ScheduleImportInputRow,
   type ScheduleImportMode,
 } from '../../src/services/scheduleImport';
+import { getEventParticipantIds, sanitizeEventParticipants, withParticipantIds } from '../../src/services/eventParticipants';
 import {
   canAccessEvent,
   hasPermission,
@@ -219,13 +220,24 @@ export function filterSharedStateForAuthorization(
     return { children: [], events: [], exceptions: [], transportationPlans: [], eventReminders: [] };
   }
 
-  const visibleCustomEvents = state.events.filter((event) => isEventInScheduleScope(authorization, event));
+  const visibleParticipantIds = new Set(authorization.scheduleScope.memberIds);
+  const visibleCustomEvents = state.events
+    .filter((event) => isEventInScheduleScope(authorization, event))
+    .flatMap((event) => {
+      if (authorization.scheduleScope.allMembers) {
+        return [event];
+      }
+
+      const sanitizedEvent = sanitizeEventParticipants(event, visibleParticipantIds);
+
+      return sanitizedEvent === null ? [] : [sanitizedEvent];
+    });
   const visibleEventIds = new Set([
     ...seedEvents.filter((event) => isEventInScheduleScope(authorization, event)).map((event) => event.id),
     ...visibleCustomEvents.map((event) => event.id),
   ]);
   const visibleMemberIds = new Set([
-    ...visibleCustomEvents.map((event) => event.childId),
+    ...visibleCustomEvents.flatMap(getEventParticipantIds),
     ...authorization.scheduleScope.memberIds,
   ]);
 
@@ -308,6 +320,8 @@ export function isEvent(value: unknown): value is Event {
   return (
     typeof event.id === 'string' &&
     event.id.trim() !== '' &&
+    (event.participantIds === undefined ||
+      (Array.isArray(event.participantIds) && event.participantIds.length > 0 && event.participantIds.every((participantId) => typeof participantId === 'string' && participantId.trim() !== ''))) &&
     typeof event.childId === 'string' &&
     event.childId.trim() !== '' &&
     typeof event.title === 'string' &&
@@ -492,8 +506,14 @@ async function canApplyMutation(db: D1Database, auth: AuthenticatedSession, muta
       return false;
     case 'importSchedule':
       return hasPermission(authorization, 'edit_schedule');
-    case 'upsertEvent':
-      return canAccessEvent(authorization, mutation.payload, 'edit_schedule');
+    case 'upsertEvent': {
+      const existingEvent = await readKnownEventById(db, mutation.payload.id);
+
+      return (
+        (existingEvent === null || canAccessEvent(authorization, withParticipantIds(existingEvent), 'edit_schedule')) &&
+        canAccessEvent(authorization, withParticipantIds(mutation.payload), 'edit_schedule')
+      );
+    }
     case 'deleteEvent': {
       const event = await readKnownEventById(db, mutation.payload.id);
 
@@ -572,7 +592,7 @@ async function applyScheduleImport(db: D1Database, auth: AuthenticatedSession | 
       continue;
     }
 
-    if (authorization !== null && !canAccessEvent(authorization, event, 'edit_schedule')) {
+    if (authorization !== null && !canAccessEvent(authorization, withParticipantIds(event), 'edit_schedule')) {
       errors += 1;
       continue;
     }
@@ -589,7 +609,7 @@ async function applyScheduleImport(db: D1Database, auth: AuthenticatedSession | 
     statements.push(
       db
         .prepare('INSERT INTO custom_events (id, child_id, payload, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET child_id = excluded.child_id, payload = excluded.payload, updated_at = excluded.updated_at')
-        .bind(event.id, event.childId, JSON.stringify(event), event.updatedAt),
+        .bind(event.id, event.childId, JSON.stringify(withParticipantIds(event)), event.updatedAt),
     );
   }
 
@@ -644,7 +664,7 @@ async function applyMutation(db: D1Database, mutation: MutationRequest): Promise
     case 'upsertEvent':
       await db
         .prepare('INSERT INTO custom_events (id, child_id, payload, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET child_id = excluded.child_id, payload = excluded.payload, updated_at = excluded.updated_at')
-        .bind(mutation.payload.id, mutation.payload.childId, JSON.stringify(mutation.payload), mutation.payload.updatedAt)
+        .bind(mutation.payload.id, mutation.payload.childId, JSON.stringify(withParticipantIds(mutation.payload)), mutation.payload.updatedAt)
         .run();
       break;
     case 'deleteEvent':
@@ -723,7 +743,7 @@ async function importLocalData(db: D1Database, payload: Omit<SharedFamilyState, 
     ...payload.customEvents.map((event) =>
       db
         .prepare('INSERT INTO custom_events (id, child_id, payload, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET child_id = excluded.child_id, payload = excluded.payload, updated_at = excluded.updated_at')
-        .bind(event.id, event.childId, JSON.stringify(event), event.updatedAt),
+        .bind(event.id, event.childId, JSON.stringify(withParticipantIds(event)), event.updatedAt),
     ),
     ...payload.eventExceptions.map((exception) =>
       db

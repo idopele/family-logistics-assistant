@@ -235,6 +235,7 @@ export function importRowToEvent({
   const base = {
     id: `schedule-import-${batchId}-${row.sourceRow}-${crypto.randomUUID()}`,
     childId: targetMemberId,
+    participantIds: [targetMemberId],
     title: row.title,
     category,
     customCategoryLabel: null,

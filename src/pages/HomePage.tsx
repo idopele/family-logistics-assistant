@@ -65,6 +65,7 @@ import { detectTransportationConflicts } from '../services/transportationConflic
 import { buildFamilyActionCenterData } from '../services/familyActionCenter';
 import { registerFamilyServiceWorker } from '../services/pushNotifications';
 import { canEditEvent, hasPermission, isEventAuthorized } from '../services/authorization';
+import { getOccurrenceParticipantIds } from '../services/eventParticipants';
 import { useUiPreferences, type Language } from '../i18n';
 import type { AuthSession } from '../services/authClient';
 import { addDays, getDayOfWeek, isValidDate } from '../utils/dateTime';
@@ -823,7 +824,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
               />
             </div>
             <section className="active-filter-summary" aria-label={t('selectedFilters')}>
-              <span>{activeFilterSummary}</span>
+              <span>{t('showing')}: {activeFilterSummary}</span>
               <button type="button" onClick={handleResetFilters}>{t('reset')}</button>
             </section>
           </>
@@ -956,6 +957,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
         event={selectedEvent}
         occurrence={selectedOccurrence}
         child={selectedOccurrence === null ? null : childrenById.get(selectedOccurrence.childId) ?? null}
+        participantNames={selectedOccurrence === null ? [] : getOccurrenceParticipantIds(selectedOccurrence).map((participantId) => childrenById.get(participantId)?.name ?? participantId)}
         transportationPlan={selectedTransportationPlan}
         reminder={selectedReminder}
         canEditEvent={selectedEvent !== null && isSelectedCustomOneTimeEvent && canEditEvent(effectiveAuthorization, selectedEvent)}
@@ -1019,7 +1021,7 @@ function buildActiveFilterSummary({
   language: Language;
 }): string {
   const selectedMembers = filters.selectedMemberIds.length === authorizedMemberIds.length
-    ? []
+    ? [language === 'en' ? 'All' : 'כולם']
     : filters.selectedMemberIds.map((memberId) => childrenById.get(memberId)?.name ?? memberId);
   const selectedCategories = filters.selectedCategories.length === authorizedCategories.length
     ? []

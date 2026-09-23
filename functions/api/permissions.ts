@@ -1,4 +1,5 @@
 import type { AuthorizationContext, Event, EventCategory, PermissionScope } from '../../src/models';
+import { getEventParticipantIds } from '../../src/services/eventParticipants';
 import type { AuthenticatedSession, D1Database } from './authCore';
 
 export const allPermissionScopes: PermissionScope[] = [
@@ -104,20 +105,28 @@ export function hasPermission(authorization: AuthorizationContext, permission: P
   return authorization.fullAccess || authorization.permissions.includes(permission);
 }
 
-export function canAccessEvent(authorization: AuthorizationContext, event: Pick<Event, 'childId' | 'category'>, permission: PermissionScope): boolean {
+export function canAccessEvent(authorization: AuthorizationContext, event: Pick<Event, 'childId' | 'participantIds' | 'category'>, permission: PermissionScope): boolean {
   if (!hasPermission(authorization, permission)) {
     return false;
+  }
+
+  if (permission === 'edit_schedule' && !authorization.fullAccess) {
+    const editableMemberIds = new Set(authorization.scheduleScope.memberIds);
+    const canEditAllParticipants = authorization.scheduleScope.allMembers || getEventParticipantIds(event).every((participantId) => editableMemberIds.has(participantId));
+    const matchesCategory = authorization.scheduleScope.allCategories || authorization.scheduleScope.categories.includes(event.category);
+
+    return canEditAllParticipants && matchesCategory;
   }
 
   return isEventInScheduleScope(authorization, event);
 }
 
-export function isEventInScheduleScope(authorization: AuthorizationContext, event: Pick<Event, 'childId' | 'category'>): boolean {
+export function isEventInScheduleScope(authorization: AuthorizationContext, event: Pick<Event, 'childId' | 'participantIds' | 'category'>): boolean {
   if (authorization.fullAccess) {
     return true;
   }
 
-  const matchesMember = authorization.scheduleScope.allMembers || authorization.scheduleScope.memberIds.includes(event.childId);
+  const matchesMember = authorization.scheduleScope.allMembers || getEventParticipantIds(event).some((participantId) => authorization.scheduleScope.memberIds.includes(participantId));
   const matchesCategory = authorization.scheduleScope.allCategories || authorization.scheduleScope.categories.includes(event.category);
 
   return matchesMember && matchesCategory;

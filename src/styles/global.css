@@ -766,6 +766,10 @@ summary:focus-visible {
 .schedule-filters__button--person[aria-pressed='true'] .schedule-filters__person-avatar { background: rgb(255 255 255 / 22%); color: #fff; }
 .schedule-filters__button--more { border-style: dashed; }
 .schedule-filters__button[aria-pressed='true'] { border-color: var(--color-indigo); background: var(--color-indigo); color: #fff; font-weight: 950; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 28%), 0 0.35rem 0.85rem rgb(81 75 145 / 18%); }
+.schedule-filters__button[data-selected='false'] { opacity: 0.72; }
+.schedule-filters__button[data-selected='true'] { border-width: 2px; font-weight: 950; }
+.schedule-filters__check { display: inline-grid; place-items: center; width: 1em; font-weight: 950; }
+.schedule-filters__button--all[data-selected='true'] { border-color: var(--color-indigo); background: var(--color-indigo); color: #fff; }
 .schedule-filters__group[data-filter-group='activity'] .schedule-filters__button--person:not([aria-pressed='true']) { border-color: color-mix(in srgb, var(--person-color, var(--color-indigo)) 28%, white); background: color-mix(in srgb, var(--person-color, var(--color-indigo)) 10%, white); color: color-mix(in srgb, var(--person-color, var(--color-indigo)) 68%, #1d2430); }
 .schedule-filters__person-avatar { display: inline-grid; place-items: center; width: 1.28rem; height: 1.28rem; border-radius: 999px; background: color-mix(in srgb, var(--person-color, var(--color-indigo)) 20%, white); color: color-mix(in srgb, var(--person-color, var(--color-indigo)) 82%, #111827); font-size: 0.72rem; font-weight: 950; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 58%); }
 .schedule-filters__button--person[aria-pressed='true'] .schedule-filters__person-avatar { background: rgb(255 255 255 / 22%); color: #fff; }
@@ -1473,6 +1477,12 @@ summary:focus-visible {
 .form-field input:focus, .form-field select:focus, .form-field textarea:focus { background: #fff; }
 .form-field textarea { min-height: 5.6rem; resize: vertical; }
 .checkbox-field { display: flex; align-items: center; gap: 0.5rem; color: var(--color-text-soft); font-size: 0.9rem; font-weight: 900; }
+.participant-field { min-width: 0; margin: 0; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-soft); padding: var(--space-3); }
+.participant-field legend { color: var(--color-text-soft); font-size: 0.86rem; font-weight: 950; }
+.participant-options, .participant-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.participant-actions { margin-top: var(--space-2); }
+.participant-option { min-height: 2.25rem; border-color: var(--color-border); background: var(--color-surface); color: var(--color-text-soft); padding: 0 0.72rem; }
+.participant-option[data-selected='true'] { border-color: var(--color-indigo); background: var(--color-indigo); color: #fff; font-weight: 950; }
 .recurrence-mode-field, .recurrence-controls, .weekday-field, .recurrence-end-field, .transportation-leg, .passenger-field, .event-details-transportation { min-width: 0; margin: 0; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-soft); padding: var(--space-3); }
 .recurrence-mode-field, .recurrence-end-field { display: flex; flex-wrap: wrap; gap: 0.5rem 0.85rem; }
 .recurrence-mode-field label, .recurrence-end-field label { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--color-text-soft); font-weight: 850; }

@@ -1,4 +1,5 @@
 import type { AuthorizationContext, Event, EventCategory, PermissionScope } from '../models';
+import { getEventParticipantIds } from './eventParticipants';
 
 export const emptyAuthorizationContext: AuthorizationContext = {
   fullAccess: false,
@@ -15,7 +16,7 @@ export function hasPermission(authorization: AuthorizationContext | null | undef
   return authorization?.fullAccess === true || authorization?.permissions.includes(permission) === true;
 }
 
-export function isEventAuthorized(authorization: AuthorizationContext | null | undefined, event: Pick<Event, 'childId' | 'category'>): boolean {
+export function isEventAuthorized(authorization: AuthorizationContext | null | undefined, event: Pick<Event, 'childId' | 'participantIds' | 'category'>): boolean {
   if (authorization === undefined || authorization === null || authorization.fullAccess) {
     return true;
   }
@@ -24,14 +25,26 @@ export function isEventAuthorized(authorization: AuthorizationContext | null | u
     return false;
   }
 
-  const matchesMember = authorization.scheduleScope.allMembers || authorization.scheduleScope.memberIds.includes(event.childId);
+  const matchesMember = authorization.scheduleScope.allMembers || getEventParticipantIds(event).some((participantId) => authorization.scheduleScope.memberIds.includes(participantId));
   const matchesCategory = authorization.scheduleScope.allCategories || authorization.scheduleScope.categories.includes(event.category);
 
   return matchesMember && matchesCategory;
 }
 
-export function canEditEvent(authorization: AuthorizationContext | null | undefined, event: Pick<Event, 'childId' | 'category'>): boolean {
-  return hasPermission(authorization, 'edit_schedule') && (authorization?.fullAccess === true || isEventAuthorized(authorization, event));
+export function canEditEvent(authorization: AuthorizationContext | null | undefined, event: Pick<Event, 'childId' | 'participantIds' | 'category'>): boolean {
+  if (!hasPermission(authorization, 'edit_schedule')) {
+    return false;
+  }
+
+  if (authorization?.fullAccess === true) {
+    return true;
+  }
+
+  const editableMemberIds = new Set(authorization?.scheduleScope.memberIds ?? []);
+  const canEditAllParticipants = authorization?.scheduleScope.allMembers === true || getEventParticipantIds(event).every((participantId) => editableMemberIds.has(participantId));
+  const matchesCategory = authorization?.scheduleScope.allCategories === true || authorization?.scheduleScope.categories.includes(event.category) === true;
+
+  return canEditAllParticipants && matchesCategory;
 }
 
 export function isAuthorizationContext(value: unknown): value is AuthorizationContext {

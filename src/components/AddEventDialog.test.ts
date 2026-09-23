@@ -17,6 +17,12 @@ const children: Child[] = [
     color: '#2563EB',
     isActive: true,
   },
+  {
+    id: 'emanuel',
+    name: 'עמנואל',
+    color: '#DB2777',
+    isActive: true,
+  },
 ];
 
 const validValues: AddEventFormValues = {
@@ -110,6 +116,40 @@ describe('AddEventDialog validation', () => {
       endDate: '2026-10-31',
       daysOfWeek: [0, 3],
     });
+  });
+
+  it('stores one participant while preserving childId compatibility', () => {
+    const event = buildEventFromFormValues(
+      { ...validValues, participantIds: ['daniel'] },
+      null,
+      '2026-09-12T12:00:00.000Z',
+    );
+
+    expect(event.childId).toBe('daniel');
+    expect(event.participantIds).toEqual(['daniel']);
+  });
+
+  it('stores multiple participants on one event without cloning it', () => {
+    const event = buildEventFromFormValues(
+      { ...validValues, participantIds: ['daniel', 'emanuel'] },
+      null,
+      '2026-09-12T12:00:00.000Z',
+    );
+
+    expect(event.id).toBeTruthy();
+    expect(event.childId).toBe('daniel');
+    expect(event.participantIds).toEqual(['daniel', 'emanuel']);
+  });
+
+  it('falls back from legacy childId when participantIds is not provided', () => {
+    const event = buildEventFromFormValues(validValues, null, '2026-09-12T12:00:00.000Z');
+
+    expect(event.childId).toBe('daniel');
+    expect(event.participantIds).toEqual(['daniel']);
+  });
+
+  it('requires at least one participant', () => {
+    expect(validateAddEventForm({ ...validValues, childId: '', participantIds: [] }, children)).not.toBeNull();
   });
 
   it('requires at least one weekday for weekly recurring events', () => {

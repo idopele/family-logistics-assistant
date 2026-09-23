@@ -139,6 +139,36 @@ describe('compact dashboard terminology and family-member presentation', () => {
     expect(markup).toContain('Y');
   });
 
+  it('renders an explicit All participant chip with selected state', () => {
+    const markup = renderFilters({
+      children: [
+        { id: 'daniel', name: 'Daniel', color: '#2563EB', isActive: true },
+        { id: 'emanuel', name: 'Emanuel', color: '#DB2777', isActive: true },
+      ],
+      selectedMemberIds: ['daniel', 'emanuel'],
+    });
+
+    expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain('data-selected="true"');
+    expect(markup).toContain('✓');
+    expect(markup).toContain(translations.he.all);
+  });
+
+  it('shows selected checkmarks while unselected member chips remain secondary', () => {
+    const markup = renderFilters({
+      children: [
+        { id: 'daniel', name: 'Daniel', color: '#2563EB', isActive: true },
+        { id: 'emanuel', name: 'Emanuel', color: '#DB2777', isActive: true },
+      ],
+      selectedMemberIds: ['daniel'],
+    });
+
+    expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain('aria-pressed="false"');
+    expect(markup).toContain('data-selected="false"');
+    expect(markup).toContain('✓');
+  });
+
   it('uses workspace-neutral member filter terminology', () => {
     const markup = renderFilters();
 

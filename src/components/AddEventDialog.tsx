@@ -25,6 +25,7 @@ export type AddEventSaveResult =
 
 export interface AddEventFormValues {
   childId: string;
+  participantIds?: string[];
   category: ManualCategorySelection;
   customCategoryLabel: string;
   title: string;
@@ -71,6 +72,7 @@ const manualCategories: ManualEventCategory[] = [
 
 const initialValues: AddEventFormValues = {
   childId: 'daniel',
+  participantIds: ['daniel'],
   category: 'other',
   customCategoryLabel: '',
   title: '',
@@ -173,6 +175,19 @@ export function AddEventDialog({ isOpen, children, availableCategories, eventToE
     setValues({ ...values, recurrenceDaysOfWeek });
   }
 
+  function toggleParticipant(participantId: string) {
+    const currentParticipantIds = getFormParticipantIds(values);
+    const participantIds = currentParticipantIds.includes(participantId)
+      ? currentParticipantIds.filter((selectedId) => selectedId !== participantId)
+      : [...currentParticipantIds, participantId];
+
+    setValues({
+      ...values,
+      participantIds,
+      childId: participantIds[0] ?? values.childId,
+    });
+  }
+
   function handleCancel() {
     setValues(initialValues);
     setError(null);
@@ -187,16 +202,32 @@ export function AddEventDialog({ isOpen, children, availableCategories, eventToE
           <h2 id="add-event-title">{isEditMode ? t('editEventTitle') : t('addEventTitle')}</h2>
         </header>
         <form className="add-event-form" onSubmit={handleSubmit}>
-          <label className="form-field">
-            <span>{t('child')}</span>
-            <select value={values.childId} onChange={(event) => setValues({ ...values, childId: event.target.value })}>
-              {children.map((child) => (
-                <option key={child.id} value={child.id}>
-                  {child.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <fieldset className="participant-field form-field--wide">
+            <legend>{t('participants')}</legend>
+            <div className="participant-options">
+              {children.map((child) => {
+                const isSelected = getFormParticipantIds(values).includes(child.id);
+
+                return (
+                  <button
+                    aria-pressed={isSelected}
+                    className="participant-option"
+                    data-selected={isSelected ? 'true' : 'false'}
+                    key={child.id}
+                    type="button"
+                    onClick={() => toggleParticipant(child.id)}
+                  >
+                    <span aria-hidden="true">{isSelected ? '✓' : ''}</span>
+                    {child.name}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="participant-actions">
+              <button type="button" onClick={() => setValues({ ...values, childId: children[0]?.id ?? '', participantIds: children.map((child) => child.id) })}>{t('selectAll')}</button>
+              <button type="button" onClick={() => setValues({ ...values, childId: '', participantIds: [] })}>{t('clearSelection')}</button>
+            </div>
+          </fieldset>
 
           <label className="form-field">
             <span>{t('eventType')}</span>
@@ -455,6 +486,7 @@ function getInitialValues(children: Child[]): AddEventFormValues {
   return {
     ...initialValues,
     childId: children[0]?.id ?? '',
+    participantIds: children[0]?.id === undefined ? [] : [children[0].id],
   };
 }
 
@@ -477,6 +509,7 @@ function getFormValuesFromEvent(event: Event): AddEventFormValues {
 
   return {
     childId: event.childId,
+    participantIds: event.participantIds ?? [event.childId],
     category: hasCustomCategoryLabel ? 'custom' : event.category === 'school' ? 'other' : event.category,
     customCategoryLabel: event.customCategoryLabel ?? '',
     title: event.title,
@@ -501,8 +534,9 @@ function getFormValuesFromEvent(event: Event): AddEventFormValues {
 
 export function validateAddEventForm(values: AddEventFormValues, children: Child[], language: Language = 'he'): string | null {
   const validation = validationMessages[language];
+  const participantIds = getFormParticipantIds(values);
 
-  if (values.childId === '' || !children.some((child) => child.id === values.childId)) {
+  if (participantIds.length === 0 || !participantIds.every((participantId) => children.some((child) => child.id === participantId))) {
     return validation.childRequired;
   }
 
@@ -571,10 +605,12 @@ export function buildEventFromFormValues(
   const category: EventCategory = values.category === 'custom' ? 'other' : values.category;
   const customCategoryLabel = values.category === 'custom' ? values.customCategoryLabel.trim() : null;
   const recurrence = buildRecurrence(values);
+  const participantIds = getFormParticipantIds(values);
 
   return {
     id: eventToEdit?.id ?? createEventId(),
-    childId: values.childId,
+    childId: participantIds[0] ?? values.childId,
+    participantIds,
     title: values.title.trim(),
     category,
     customCategoryLabel,
@@ -592,6 +628,12 @@ export function buildEventFromFormValues(
     createdAt: eventToEdit?.createdAt ?? timestamp,
     updatedAt: timestamp,
   };
+}
+
+function getFormParticipantIds(values: AddEventFormValues): string[] {
+  const participantIds = values.participantIds ?? (values.childId === '' ? [] : [values.childId]);
+
+  return Array.from(new Set(participantIds.filter((participantId) => participantId.trim() !== '')));
 }
 
 function nullableText(value: string): string | null {

@@ -190,6 +190,7 @@ describe('schedule CSV import parsing and preview', () => {
 
     expect(event?.recurrence).toBeNull();
     expect(event?.notes).toContain('csv_import:batch-a');
+    expect(event?.participantIds).toEqual(['daniel']);
     expect(getOccurrencesForRange([event!], [], '2026-10-03', '2026-10-03')[0]?.title).toBe('Training');
   });
 

@@ -49,10 +49,12 @@ function dashboardOccurrence(
   childId: string,
   category: ScheduleOccurrence['category'],
   date: string,
+  participantIds?: string[],
 ): ScheduleOccurrence {
   return {
     eventId,
     childId,
+    participantIds,
     date,
     title: eventId,
     category,
@@ -210,6 +212,58 @@ describe('schedule view date filters', () => {
         ['school'],
       ).map((occurrence) => occurrence.childId),
     ).toEqual(['daniel', 'emanuel']);
+  });
+
+  it('matches a shared event when Daniel is selected', () => {
+    const shared = dashboardOccurrence('shared', 'daniel', 'family', '2026-09-08', ['daniel', 'emanuel']);
+
+    expect(
+      filterOccurrencesForDashboard(
+        [shared],
+        { selectedMemberIds: ['daniel'], selectedCategories: ['family'], selectedWeekdays: [2], specificDate: null },
+        ['daniel', 'emanuel'],
+        ['family'],
+      ).map((occurrence) => occurrence.eventId),
+    ).toEqual(['shared']);
+  });
+
+  it('matches the same shared event when Emanuel is selected', () => {
+    const shared = dashboardOccurrence('shared', 'daniel', 'family', '2026-09-08', ['daniel', 'emanuel']);
+
+    expect(
+      filterOccurrencesForDashboard(
+        [shared],
+        { selectedMemberIds: ['emanuel'], selectedCategories: ['family'], selectedWeekdays: [2], specificDate: null },
+        ['daniel', 'emanuel'],
+        ['family'],
+      ).map((occurrence) => occurrence.eventId),
+    ).toEqual(['shared']);
+  });
+
+  it('returns a shared event only once when two selected members match it', () => {
+    const shared = dashboardOccurrence('shared', 'daniel', 'family', '2026-09-08', ['daniel', 'emanuel']);
+
+    expect(
+      filterOccurrencesForDashboard(
+        [shared],
+        { selectedMemberIds: ['daniel', 'emanuel'], selectedCategories: ['family'], selectedWeekdays: [2], specificDate: null },
+        ['daniel', 'emanuel'],
+        ['family'],
+      ).map((occurrence) => occurrence.eventId),
+    ).toEqual(['shared']);
+  });
+
+  it('hides a shared event when only an unrelated member is selected', () => {
+    const shared = dashboardOccurrence('shared', 'daniel', 'family', '2026-09-08', ['daniel', 'emanuel']);
+
+    expect(
+      filterOccurrencesForDashboard(
+        [shared],
+        { selectedMemberIds: ['ido'], selectedCategories: ['family'], selectedWeekdays: [2], specificDate: null },
+        ['daniel', 'emanuel', 'ido'],
+        ['family'],
+      ),
+    ).toEqual([]);
   });
 
   it('supports multiple activity selection', () => {

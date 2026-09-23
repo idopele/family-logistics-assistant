@@ -15,6 +15,7 @@ interface EventDetailsDialogProps {
   event: Event | null;
   occurrence: ScheduleOccurrence | null;
   child: Child | null;
+  participantNames?: string[];
   transportationPlan: TransportationPlan | null;
   reminder: EventReminder | null;
   canEditEvent: boolean;
@@ -38,6 +39,7 @@ export function EventDetailsDialog({
   event,
   occurrence,
   child,
+  participantNames = [],
   transportationPlan,
   reminder,
   canEditEvent,
@@ -98,8 +100,8 @@ export function EventDetailsDialog({
 
         <dl className="event-details-list">
           <div>
-            <dt>{t('child')}</dt>
-            <dd>{child?.name ?? event.childId}</dd>
+            <dt>{t('participants')}</dt>
+            <dd>{formatParticipantLabel(participantNames.length > 0 ? participantNames : [child?.name ?? event.childId])}</dd>
           </div>
           <div>
             <dt>{t('eventType')}</dt>
@@ -226,6 +228,16 @@ export function EventDetailsDialog({
       </section>
     </div>
   );
+}
+
+function formatParticipantLabel(names: string[]): string {
+  const uniqueNames = Array.from(new Set(names));
+
+  if (uniqueNames.length <= 3) {
+    return uniqueNames.join(' · ');
+  }
+
+  return `${uniqueNames.slice(0, 3).join(' · ')} · +${uniqueNames.length - 3}`;
 }
 
 async function copyTextToClipboard(value: string): Promise<void> {

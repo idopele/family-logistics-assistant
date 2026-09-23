@@ -3,6 +3,8 @@ import type { RecurrenceRule } from './RecurrenceRule';
 
 export interface Event {
   id: string;
+  /** Canonical schedule participants. Legacy events without this field use [childId]. */
+  participantIds?: string[];
   childId: string;
   title: string;
   category: EventCategory;

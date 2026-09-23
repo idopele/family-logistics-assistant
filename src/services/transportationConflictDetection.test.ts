@@ -225,6 +225,25 @@ describe('transportationConflictDetection conflicts', () => {
     expect(conflicts).toEqual([]);
   });
 
+  it('includes every visible participant from a shared event in conflict items', () => {
+    const conflicts = detectTransportationConflicts(
+      [
+        makePlan({ outbound: makeLeg({ passengerChildIds: ['daniel'] }) }),
+        makePlan({ id: 'transport-b', eventId: 'event-b', outbound: makeLeg({ passengerChildIds: ['emanuel'] }) }),
+      ],
+      [
+        makeOccurrence({ participantIds: ['daniel', 'emanuel'] }),
+        makeOccurrence({ eventId: 'event-b', childId: 'emanuel', title: 'בלט' }),
+      ],
+      children,
+      '2026-09-06',
+      '2026-09-12',
+    );
+
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0]?.first.childNames).toEqual(expect.arrayContaining(['דניאל', 'עמנואל']));
+  });
+
   it('changing driver removes a conflict', () => {
     const conflicts = detectTransportationConflicts(
       [makePlan(), makePlan({ id: 'transport-b', eventId: 'event-b', outbound: makeLeg({ driverName: 'אמא' }) })],

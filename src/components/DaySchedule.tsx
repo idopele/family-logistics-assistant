@@ -6,6 +6,7 @@ import type { ChildFilter } from './ScheduleFilters';
 import { formatDisplayDate } from '../utils/week';
 import { EventCard } from './EventCard';
 import { ReminderIndicator } from './ReminderIndicator';
+import { getOccurrenceParticipantIds } from '../services/eventParticipants';
 
 interface DayScheduleProps {
   label: string;
@@ -76,12 +77,14 @@ export function DaySchedule({
               <ScheduleSection title={t('afternoonSection')} variant="afternoon">
                 {afternoonOccurrences.map((occurrence) => {
                   const child = childrenById.get(occurrence.childId);
+                  const participantNames = getOccurrenceParticipantIds(occurrence).map((participantId) => childrenById.get(participantId)?.name ?? participantId);
 
                   return child ? (
                     <EventCard
                       key={`${occurrence.eventId}-${occurrence.date}`}
                       occurrence={occurrence}
                       child={child}
+                      participantNames={participantNames}
                       isEditable={editableEventIds.has(occurrence.eventId)}
                       isRecurring={customRecurringEventIds.has(occurrence.eventId)}
                       transportationPlan={transportationPlansByOccurrence.get(getOccurrenceKey(occurrence)) ?? null}

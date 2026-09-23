@@ -4,6 +4,7 @@ import type { EventCategory } from './EventCategory';
 export interface ScheduleOccurrence {
   eventId: string;
   childId: string;
+  participantIds?: string[];
   date: string;
   title: string;
   category: EventCategory;

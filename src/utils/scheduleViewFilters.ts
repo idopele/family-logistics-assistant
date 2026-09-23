@@ -1,5 +1,6 @@
 import { weekDayLabelsByLanguage, type Language } from '../i18n';
 import type { EventCategory, ScheduleOccurrence } from '../models';
+import { getOccurrenceParticipantIds } from '../services/eventParticipants';
 import { getDayOfWeek, isValidDate } from './dateTime';
 import { getSundayOfWeek, isDateInWorkWeek, type WeekDay } from './week';
 
@@ -135,7 +136,7 @@ export function filterOccurrencesForDashboard(
   const selectedWeekdays = normalizeSelectedWeekdays(filters.selectedWeekdays);
 
   return occurrences.filter((occurrence) => {
-    const matchesMember = selectedMemberIds.includes(occurrence.childId);
+    const matchesMember = getOccurrenceParticipantIds(occurrence).some((participantId) => selectedMemberIds.includes(participantId));
     const matchesCategory = selectedCategories.includes(occurrence.category);
     const matchesDate =
       filters.specificDate !== null && filters.specificDate !== ''
