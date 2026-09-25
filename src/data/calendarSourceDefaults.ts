@@ -12,7 +12,7 @@ export const defaultCalendarSourceSettings: CalendarSourceSettings = {
       sector: 'jewish_official',
       level: 'middle_school',
     },
-    studentParticipantIds: ['daniel', 'emanuel'],
+    studentParticipantIds: [],
   },
   updatedAt: null,
 };

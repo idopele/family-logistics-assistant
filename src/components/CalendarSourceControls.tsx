@@ -1,8 +1,9 @@
-import type { CalendarSourceSettings, EducationSector, SchoolLevel } from '../models';
+import type { CalendarSourceSettings, Child, EducationSector, SchoolLevel } from '../models';
 import { useUiPreferences } from '../i18n';
 
 interface CalendarSourceControlsProps {
   settings: CalendarSourceSettings;
+  children: Child[];
   canManage: boolean;
   isSaving: boolean;
   onChange: (settings: CalendarSourceSettings) => void;
@@ -11,12 +12,14 @@ interface CalendarSourceControlsProps {
 
 export function CalendarSourceControls({
   settings,
+  children,
   canManage,
   isSaving,
   onChange,
   onRefresh,
 }: CalendarSourceControlsProps) {
   const { t } = useUiPreferences();
+  const selectedStudentIds = new Set(settings.moe_school_vacations.studentParticipantIds);
 
   function update(nextSettings: CalendarSourceSettings) {
     if (!canManage) {
@@ -24,6 +27,26 @@ export function CalendarSourceControls({
     }
 
     onChange({ ...nextSettings, updatedAt: new Date().toISOString() });
+  }
+
+  function toggleStudentParticipant(participantId: string) {
+    const nextSelected = new Set(settings.moe_school_vacations.studentParticipantIds);
+
+    if (nextSelected.has(participantId)) {
+      nextSelected.delete(participantId);
+    } else {
+      nextSelected.add(participantId);
+    }
+
+    update({
+      ...settings,
+      moe_school_vacations: {
+        ...settings.moe_school_vacations,
+        studentParticipantIds: children
+          .map((child) => child.id)
+          .filter((childId) => nextSelected.has(childId)),
+      },
+    });
   }
 
   return (
@@ -96,6 +119,10 @@ export function CalendarSourceControls({
         <span>{t('sourceLastVerified')}: 2026-09-02</span>
       </div>
 
+      {settings.moe_school_vacations.enabled && settings.moe_school_vacations.studentParticipantIds.length === 0 ? (
+        <p className="calendar-sources__configuration-message">{t('selectMoeParticipants')}</p>
+      ) : null}
+
       {canManage ? (
         <div className="calendar-sources__settings">
           <label>
@@ -155,6 +182,22 @@ export function CalendarSourceControls({
               <option value="high_school">{t('highSchool')}</option>
             </select>
           </label>
+          <fieldset className="calendar-sources__participants">
+            <legend>{t('moeParticipants')}</legend>
+            <div>
+              {children.map((child) => (
+                <label key={child.id}>
+                  <input
+                    type="checkbox"
+                    checked={selectedStudentIds.has(child.id)}
+                    disabled={isSaving}
+                    onChange={() => toggleStudentParticipant(child.id)}
+                  />
+                  <span>{child.name}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
         </div>
       ) : null}
     </section>

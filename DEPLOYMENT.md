@@ -481,7 +481,7 @@ Production validation procedure:
 
 ## Israel Calendar Sources
 
-Version `0.14.7` adds read-only system calendar sources. These are resolved alongside custom schedule events but are not stored in `custom_events` and cannot be edited, deleted, moved, assigned rides, or counted as timed conflicts.
+Version `0.14.8` adds read-only system calendar sources. These are resolved alongside custom schedule events but are not stored in `custom_events` and cannot be edited, deleted, moved, assigned rides, or counted as timed conflicts.
 
 Architecture:
 
@@ -504,14 +504,14 @@ Ministry of Education source:
 - Source attribution: Israel Ministry of Education vacation calendar, `https://pop.education.gov.il/maagal_hashana/vacation-schedule/`.
 - The current normalized dataset is for Jewish official education, middle school, school year `2026-2027`.
 - The provider is profile-aware (`sector`, `level`, `schoolYear`) so future school years or sectors can be added without changing dashboard logic.
-- Default workspace settings map the current student profile to Daniel and Emanuel as relevant participants. Provider logic itself does not hardcode names.
+- Generic defaults do not include family-specific participant IDs. Owner/admin users must select the schedule members covered by the Ministry profile in Calendar sources; for the current family workspace, select Daniel and Emanuel during production validation.
 - Vacation ranges remain one logical system event even when surfaced on multiple dashboard dates.
 
 Persistence and refresh:
 
-- Migration `migrations/0006_calendar_sources.sql` adds `workspace_calendar_sources` for workspace-level settings and `calendar_source_cache` for a future optional source cache.
+- Migration `migrations/0006_calendar_sources.sql` adds `workspace_calendar_sources` for workspace-level settings.
 - The app can load safely before migration 0006 is applied by falling back to default source settings. Owner/admin changes require migration 0006.
-- The Refresh sources control updates/recalculates the stored source settings timestamp. The current providers are local/versioned, so no live scrape or repeated remote browser fetch is required.
+- The Refresh sources control updates/recalculates the stored source settings timestamp. The current providers are local/versioned, so no live scrape, repeated remote browser fetch, or cache table is required.
 - Provider text is treated as plain text. No HTML from source data is rendered.
 
 Production validation procedure:
@@ -519,13 +519,15 @@ Production validation procedure:
 1. Deploy the code after committing.
 2. Apply `migrations/0006_calendar_sources.sql` exactly once to the production D1 database.
 3. Sign in as owner/admin and confirm Calendar sources is visible.
-4. Verify Israeli holidays and Ministry vacations can be enabled/disabled.
-5. Verify Rosh Hashana on `2026-09-12` appears as a holiday context item.
-6. Verify the overlapping school vacation appears separately from the holiday.
-7. Filter Daniel: holidays and relevant school vacations remain visible.
-8. Filter a non-student participant: holidays remain visible and school vacations are hidden unless configured for that participant.
-9. Open a system event details panel and verify source/date/read-only metadata appears and no edit/delete controls are shown.
-10. Verify Action Center lists each holiday/vacation once and transportation conflict detection ignores all-day system context.
+4. Before selecting students, verify the Ministry source shows a clear message asking to select participants.
+5. Select Daniel and Emanuel as Ministry calendar participants and save.
+6. Verify Israeli holidays and Ministry vacations can be enabled/disabled.
+7. Verify Rosh Hashana appears as one range from `2026-09-12` through `2026-09-13`.
+8. Verify the overlapping school vacation appears separately from the holiday.
+9. Filter Daniel: holidays and relevant school vacations remain visible.
+10. Filter a non-student participant: holidays remain visible and school vacations are hidden unless configured for that participant.
+11. Open a system event details panel and verify source/date/read-only metadata appears and no edit/delete controls are shown.
+12. Verify Action Center lists each holiday/vacation once and transportation conflict detection ignores all-day system context.
 
 ## Manual Deployment Steps
 

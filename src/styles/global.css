@@ -410,6 +410,12 @@ summary:focus-visible {
 .calendar-source-toggle small { color: var(--color-text-muted); font-size: 0.72rem; font-weight: 800; }
 .calendar-sources__settings label { display: grid; gap: 0.2rem; color: var(--color-text-muted); font-size: 0.75rem; font-weight: 900; }
 .calendar-sources__settings select { min-height: 2.2rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); padding: 0 0.55rem; font: inherit; }
+.calendar-sources__configuration-message { margin: 0; border: 1px solid var(--color-amber); border-radius: var(--radius-md); background: var(--color-amber-soft); color: #73410c; padding: 0.6rem 0.75rem; font-size: 0.84rem; font-weight: 950; }
+.calendar-sources__participants { display: grid; gap: 0.45rem; min-width: min(100%, 18rem); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 0.65rem; }
+.calendar-sources__participants legend { color: var(--color-text); font-size: 0.78rem; font-weight: 950; padding: 0 0.25rem; }
+.calendar-sources__participants > div { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.calendar-sources__participants label { display: inline-flex; grid-auto-flow: column; align-items: center; gap: 0.35rem; border-radius: 999px; background: var(--color-surface); padding: 0.28rem 0.55rem; color: var(--color-text-soft); }
+.calendar-sources__participants input { width: auto; min-height: auto; }
 .pwa-install {
   display: inline-flex;
   align-items: center;
@@ -1406,9 +1412,17 @@ summary:focus-visible {
 
 :root[data-theme='dark'] .calendar-sources,
 :root[data-theme='dark'] .calendar-source-toggle,
-:root[data-theme='dark'] .system-calendar-banner {
+:root[data-theme='dark'] .system-calendar-banner,
+:root[data-theme='dark'] .calendar-sources__participants,
+:root[data-theme='dark'] .calendar-sources__participants label {
   background: rgb(17 24 39 / 72%);
   border-color: rgb(71 85 105 / 82%);
+}
+
+:root[data-theme='dark'] .calendar-sources__configuration-message {
+  background: #3c2d14;
+  color: #ffe3ad;
+  border-color: #9a6a1c;
 }
 
 :root[data-theme='dark'] .system-calendar-banner[data-system-type='holiday'] {

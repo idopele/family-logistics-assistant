@@ -28,6 +28,45 @@ describe('Israel holiday calendar source', () => {
     expect(events.some((event) => event.startDate === '2027-06-12')).toBe(false);
   });
 
+  it('keeps exact UTF-8 Hebrew holiday strings intact', () => {
+    const events = getIsraelHolidayEvents({
+      startDate: '2026-09-12',
+      endDate: '2026-09-13',
+      includeMinorObservances: false,
+    });
+
+    expect(events.find((event) => event.id === 'israel_holidays:rosh-hashana-5787')?.title.he).toBe('ראש השנה');
+  });
+
+  it('represents Israel holidays as one logical multi-day range event', () => {
+    const events = getIsraelHolidayEvents({
+      startDate: '2026-09-01',
+      endDate: '2027-04-30',
+      includeMinorObservances: true,
+    });
+    const byId = new Map(events.map((event) => [event.id, event]));
+
+    expect(byId.get('israel_holidays:rosh-hashana-5787')).toMatchObject({ startDate: '2026-09-12', endDate: '2026-09-13' });
+    expect(byId.get('israel_holidays:sukkot-5787')).toMatchObject({ startDate: '2026-09-26', endDate: '2026-10-02' });
+    expect(byId.get('israel_holidays:hanukkah-5787')).toMatchObject({ startDate: '2026-12-05', endDate: '2026-12-12' });
+    expect(byId.get('israel_holidays:pesach-5787')).toMatchObject({ startDate: '2027-04-22', endDate: '2027-04-28' });
+  });
+
+  it('keeps Pesach and Simchat Torah Israel-specific dates', () => {
+    const events = getIsraelHolidayEvents({
+      startDate: '2026-10-01',
+      endDate: '2027-04-30',
+      includeMinorObservances: false,
+    });
+
+    expect(events.find((event) => event.id === 'israel_holidays:pesach-5787')?.endDate).toBe('2027-04-28');
+    expect(events.find((event) => event.id === 'israel_holidays:pesach-5787')?.endDate).not.toBe('2027-04-29');
+    expect(events.find((event) => event.id === 'israel_holidays:simchat-torah-5787')).toMatchObject({
+      startDate: '2026-10-03',
+      endDate: '2026-10-03',
+    });
+  });
+
   it('excludes minor observances by default and includes them on request', () => {
     expect(getIsraelHolidayEvents({ startDate: '2027-01-23', endDate: '2027-01-23', includeMinorObservances: false })).toHaveLength(0);
     expect(getIsraelHolidayEvents({ startDate: '2027-01-23', endDate: '2027-01-23', includeMinorObservances: true })).toHaveLength(1);
@@ -51,6 +90,19 @@ describe('Ministry of Education vacation calendar source', () => {
     expect(events.some((event) => event.title.en === 'Rosh Hashana vacation')).toBe(true);
     expect(events.some((event) => event.startDate === '2026-09-20' && event.endDate === '2026-10-03')).toBe(true);
     expect(events.every((event) => event.participantIds.join('|') === 'daniel|emanuel')).toBe(true);
+  });
+
+  it('keeps exact UTF-8 Hebrew Ministry strings intact', () => {
+    const events = getMinistryEducationVacationEvents({
+      startDate: '2026-12-06',
+      endDate: '2026-12-12',
+      schoolYear: '2026-2027',
+      profile: { sector: 'jewish_official', level: 'middle_school' },
+      studentParticipantIds: ['daniel'],
+    });
+
+    expect(events[0]?.title.he).toBe('חופשת חנוכה');
+    expect(events[0]?.metadata.sourceName.he).toBe('משרד החינוך');
   });
 
   it('does not duplicate one vacation event per participant', () => {
@@ -95,8 +147,18 @@ describe('calendar source resolution and filtering', () => {
     })).toHaveLength(0);
   });
 
+  it('generic defaults do not hardcode current family participant IDs', () => {
+    expect(getDefaultCalendarSourceSettings().moe_school_vacations.studentParticipantIds).toEqual([]);
+  });
+
   it('shows holidays for any participant filter and school vacations only for relevant students', () => {
-    const settings = getDefaultCalendarSourceSettings();
+    const settings = {
+      ...getDefaultCalendarSourceSettings(),
+      moe_school_vacations: {
+        ...getDefaultCalendarSourceSettings().moe_school_vacations,
+        studentParticipantIds: ['daniel'],
+      },
+    };
     const events = getSystemCalendarEventsForRange({
       settings,
       startDate: '2026-09-11',
@@ -119,8 +181,15 @@ describe('calendar source resolution and filtering', () => {
   });
 
   it('keeps overlapping holiday and vacation events separate and read-only', () => {
+    const settings = {
+      ...getDefaultCalendarSourceSettings(),
+      moe_school_vacations: {
+        ...getDefaultCalendarSourceSettings().moe_school_vacations,
+        studentParticipantIds: ['daniel'],
+      },
+    };
     const events = getSystemCalendarEventsForRange({
-      settings: getDefaultCalendarSourceSettings(),
+      settings,
       startDate: '2026-09-12',
       endDate: '2026-09-12',
       visibleParticipantIds: ['daniel'],
@@ -128,5 +197,29 @@ describe('calendar source resolution and filtering', () => {
 
     expect(events.map((event) => event.type).sort()).toEqual(['holiday', 'school_vacation']);
     expect(events.every((event) => event.metadata.readOnly)).toBe(true);
+  });
+
+  it('range events show on each relevant date while remaining one logical event', () => {
+    const events = getSystemCalendarEventsForRange({
+      settings: getDefaultCalendarSourceSettings(),
+      startDate: '2026-12-06',
+      endDate: '2026-12-07',
+      visibleParticipantIds: ['ido'],
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.id).toBe('israel_holidays:hanukkah-5787');
+    expect(filterSystemCalendarEventsForDashboard({
+      events,
+      selectedMemberIds: ['ido'],
+      selectedTypes: ['holiday'],
+      selectedDates: ['2026-12-06'],
+    })).toHaveLength(1);
+    expect(filterSystemCalendarEventsForDashboard({
+      events,
+      selectedMemberIds: ['ido'],
+      selectedTypes: ['holiday'],
+      selectedDates: ['2026-12-07'],
+    })).toHaveLength(1);
   });
 });

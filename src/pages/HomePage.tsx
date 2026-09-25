@@ -870,6 +870,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
             />
             <CalendarSourceControls
               settings={calendarSourceSettings}
+              children={activeChildren}
               canManage={canManageFamilyMembers}
               isSaving={isSavingCalendarSources}
               onChange={(settings) => void handleCalendarSourceSettingsChange(settings)}

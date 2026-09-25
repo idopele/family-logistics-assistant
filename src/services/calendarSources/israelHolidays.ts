@@ -4,7 +4,8 @@ import { toPlainText } from './plainText';
 interface HolidayRecord {
   id: string;
   title: { he: string; en: string };
-  date: string;
+  startDate: string;
+  endDate: string;
   description: { he: string; en: string } | null;
   sourceReference: string;
   minor?: boolean;
@@ -22,94 +23,107 @@ const holidays: HolidayRecord[] = [
   {
     id: 'rosh-hashana-5787',
     title: { he: 'ראש השנה', en: 'Rosh Hashana' },
-    date: '2026-09-12',
+    startDate: '2026-09-12',
+    endDate: '2026-09-13',
     description: { he: 'חג ראש השנה לפי לוח ישראל.', en: 'Rosh Hashana in the Israel holiday calendar.' },
-    sourceReference: 'Hebcal Israel i=on, 1 Tishrei 5787',
+    sourceReference: 'Hebcal Israel i=on, 1-2 Tishrei 5787',
   },
   {
     id: 'yom-kippur-5787',
     title: { he: 'יום כיפור', en: 'Yom Kippur' },
-    date: '2026-09-21',
+    startDate: '2026-09-21',
+    endDate: '2026-09-21',
     description: { he: 'יום הכיפורים לפי לוח ישראל.', en: 'Yom Kippur in the Israel holiday calendar.' },
     sourceReference: 'Hebcal Israel i=on, 10 Tishrei 5787',
   },
   {
     id: 'sukkot-5787',
     title: { he: 'סוכות', en: 'Sukkot' },
-    date: '2026-09-26',
-    description: { he: 'חג סוכות, מיוצג כיום אזרחי מלא.', en: 'Sukkot represented as an all-day civil-date event.' },
-    sourceReference: 'Hebcal Israel i=on, 15 Tishrei 5787',
+    startDate: '2026-09-26',
+    endDate: '2026-10-02',
+    description: { he: 'חג סוכות, מיוצג כטווח ימים אזרחיים מלאים.', en: 'Sukkot represented as an all-day civil-date range.' },
+    sourceReference: 'Hebcal Israel i=on, 15-21 Tishrei 5787',
   },
   {
     id: 'simchat-torah-5787',
-    title: { he: 'שמחת תורה', en: 'Simchat Torah' },
-    date: '2026-10-03',
-    description: { he: 'שמיני עצרת/שמחת תורה בישראל ביום אחד.', en: 'Shmini Atzeret/Simchat Torah is one day in Israel.' },
+    title: { he: 'שמיני עצרת / שמחת תורה', en: 'Shmini Atzeret / Simchat Torah' },
+    startDate: '2026-10-03',
+    endDate: '2026-10-03',
+    description: { he: 'שמיני עצרת ושמחת תורה בישראל ביום אחד.', en: 'Shmini Atzeret and Simchat Torah are one day in Israel.' },
     sourceReference: 'Hebcal Israel i=on, 22 Tishrei 5787',
   },
   {
     id: 'hanukkah-5787',
     title: { he: 'חנוכה', en: 'Hanukkah' },
-    date: '2026-12-05',
-    description: { he: 'תחילת חנוכה לפי לוח ישראל.', en: 'Start of Hanukkah in the Israel calendar.' },
-    sourceReference: 'Hebcal Israel i=on, 25 Kislev 5787',
+    startDate: '2026-12-05',
+    endDate: '2026-12-12',
+    description: { he: 'חנוכה לפי לוח ישראל.', en: 'Hanukkah in the Israel calendar.' },
+    sourceReference: 'Hebcal Israel i=on, 25 Kislev-2 Tevet 5787',
+  },
+  {
+    id: 'tu-bishvat-5787',
+    title: { he: 'ט״ו בשבט', en: 'Tu BiShvat' },
+    startDate: '2027-01-23',
+    endDate: '2027-01-23',
+    description: { he: 'מועד משני, מוסתר כברירת מחדל.', en: 'Minor observance, hidden by default.' },
+    sourceReference: 'Hebcal Israel i=on minor holidays',
+    minor: true,
   },
   {
     id: 'purim-5787',
     title: { he: 'פורים', en: 'Purim' },
-    date: '2027-03-23',
+    startDate: '2027-03-23',
+    endDate: '2027-03-23',
     description: { he: 'פורים.', en: 'Purim.' },
     sourceReference: 'Hebcal Israel i=on, 14 Adar II 5787',
   },
   {
     id: 'pesach-5787',
     title: { he: 'פסח', en: 'Pesach' },
-    date: '2027-04-22',
+    startDate: '2027-04-22',
+    endDate: '2027-04-28',
     description: { he: 'חג הפסח לפי לוח ישראל.', en: 'Pesach in the Israel holiday calendar.' },
-    sourceReference: 'Hebcal Israel i=on, 15 Nisan 5787',
+    sourceReference: 'Hebcal Israel i=on, 15-21 Nisan 5787',
   },
   {
     id: 'yom-hashoah-5787',
     title: { he: 'יום השואה', en: 'Yom HaShoah' },
-    date: '2027-05-04',
+    startDate: '2027-05-04',
+    endDate: '2027-05-04',
     description: { he: 'יום הזיכרון לשואה ולגבורה.', en: 'Holocaust Remembrance Day.' },
     sourceReference: 'Hebcal Israel i=on modern holidays',
   },
   {
     id: 'yom-hazikaron-5787',
     title: { he: 'יום הזיכרון', en: 'Yom HaZikaron' },
-    date: '2027-05-11',
+    startDate: '2027-05-11',
+    endDate: '2027-05-11',
     description: { he: 'יום הזיכרון לחללי מערכות ישראל.', en: "Israel's Memorial Day." },
     sourceReference: 'Hebcal Israel i=on modern holidays',
   },
   {
     id: 'yom-haatzmaut-5787',
     title: { he: 'יום העצמאות', en: "Yom HaAtzma'ut" },
-    date: '2027-05-12',
+    startDate: '2027-05-12',
+    endDate: '2027-05-12',
     description: { he: 'יום העצמאות של מדינת ישראל.', en: "Israel's Independence Day." },
     sourceReference: 'Hebcal Israel i=on modern holidays',
   },
   {
     id: 'yom-yerushalayim-5787',
     title: { he: 'יום ירושלים', en: 'Yom Yerushalayim' },
-    date: '2027-06-04',
+    startDate: '2027-06-04',
+    endDate: '2027-06-04',
     description: { he: 'יום ירושלים.', en: 'Jerusalem Day.' },
     sourceReference: 'Hebcal Israel i=on modern holidays',
   },
   {
     id: 'shavuot-5787',
     title: { he: 'שבועות', en: 'Shavuot' },
-    date: '2027-06-11',
+    startDate: '2027-06-11',
+    endDate: '2027-06-11',
     description: { he: 'שבועות. בישראל אין יום טוב שני של גלויות.', en: 'Shavuot. Israel mode excludes the Diaspora second day.' },
     sourceReference: 'Hebcal Israel i=on, 6 Sivan 5787',
-  },
-  {
-    id: 'tu-bishvat-5787',
-    title: { he: 'ט״ו בשבט', en: 'Tu BiShvat' },
-    date: '2027-01-23',
-    description: { he: 'מועד משני, מוסתר כברירת מחדל.', en: 'Minor observance, hidden by default.' },
-    sourceReference: 'Hebcal Israel i=on minor holidays',
-    minor: true,
   },
 ];
 
@@ -120,14 +134,14 @@ export function getIsraelHolidayEvents({
 }: IsraelHolidayProviderOptions): SystemCalendarEvent[] {
   return holidays
     .filter((holiday) => includeMinorObservances || holiday.minor !== true)
-    .filter((holiday) => holiday.date >= startDate && holiday.date <= endDate)
+    .filter((holiday) => rangesOverlap(holiday.startDate, holiday.endDate, startDate, endDate))
     .map((holiday) => ({
       id: `israel_holidays:${holiday.id}`,
       source: 'israel_holidays',
       type: 'holiday',
       title: localizePlain(holiday.title),
-      startDate: holiday.date,
-      endDate: holiday.date,
+      startDate: holiday.startDate,
+      endDate: holiday.endDate,
       allDay: true,
       description: holiday.description === null ? null : localizePlain(holiday.description),
       sourceUrl: hebcalIsraelSourceUrl,
@@ -135,7 +149,7 @@ export function getIsraelHolidayEvents({
       appliesToAllParticipants: true,
       participantIds: [],
       metadata: {
-        calendarYear: `${holiday.date.slice(0, 4)}`,
+        calendarYear: holiday.startDate.slice(0, 4),
         sourceName: { he: 'Hebcal', en: 'Hebcal' },
         lastVerifiedAt: '2026-09-23',
         israelMode: true,
@@ -143,6 +157,10 @@ export function getIsraelHolidayEvents({
         readOnly: true,
       },
     }));
+}
+
+function rangesOverlap(firstStart: string, firstEnd: string, secondStart: string, secondEnd: string): boolean {
+  return firstStart <= secondEnd && firstEnd >= secondStart;
 }
 
 function localizePlain(text: { he: string; en: string }) {
