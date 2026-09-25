@@ -1,4 +1,4 @@
-import type { Child, EventReminder, ScheduleOccurrence, TransportationPlan } from '../models';
+import { getLocalizedText, type Child, type EventReminder, type ScheduleOccurrence, type TransportationPlan } from '../models';
 import type { Language } from '../i18n';
 import { useUiPreferences } from '../i18n';
 import type { FamilyActionCenterData, TodayTransportationLeg } from '../services/familyActionCenter';
@@ -34,7 +34,8 @@ export function FamilyActionCenter({
     data.cancellations.length > 0 ||
     data.transportationLegs.length > 0 ||
     data.transportationConflicts.length > 0 ||
-    data.changedOccurrences.length > 0;
+    data.changedOccurrences.length > 0 ||
+    data.systemEventsToday.length > 0;
 
   return (
     <section className="family-action-center" aria-labelledby="family-action-center-title">
@@ -54,6 +55,7 @@ export function FamilyActionCenter({
         {data.counts.activities > 0 ? <span>{data.counts.activities} {t('activities')}</span> : null}
         {data.counts.transportationLegs > 0 ? <span>{data.counts.transportationLegs} {t('rides')}</span> : null}
         {data.counts.changes > 0 ? <span data-tone="change">{data.counts.changes} {t('change')}</span> : null}
+        {data.systemEventsToday.length > 0 ? <span>{data.systemEventsToday.length} {t('calendarContextSection')}</span> : null}
       </div>
 
       {data.transportationConflicts.length > 0 ? (
@@ -72,6 +74,21 @@ export function FamilyActionCenter({
           />
         ))}
       </div>
+
+      {data.systemEventsToday.length > 0 ? (
+        <section className="family-action-section">
+          <h3>{t('calendarContextSection')}</h3>
+          <div className="family-action-list">
+            {data.systemEventsToday.map((event) => (
+              <div className="family-action-row family-action-row--static family-action-row--system" key={event.id}>
+                <time>{event.type === 'holiday' ? '🇮🇱' : '🏫'}</time>
+                <span>{getLocalizedText(event.title, language)}</span>
+                <small>{event.type === 'holiday' ? t('holidaysAndObservances') : t('schoolVacations')}</small>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {data.remainingNonSchoolOccurrences.length > 0 ? (
         <section className="family-action-section">

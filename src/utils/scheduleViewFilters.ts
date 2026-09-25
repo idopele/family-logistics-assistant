@@ -1,5 +1,6 @@
 import { weekDayLabelsByLanguage, type Language } from '../i18n';
-import type { EventCategory, ScheduleOccurrence } from '../models';
+import type { EventCategory, ScheduleOccurrence, SystemCalendarEventType } from '../models';
+import { systemCalendarFilterValues } from '../services/calendarSources/calendarSourceService';
 import { getOccurrenceParticipantIds } from '../services/eventParticipants';
 import { getDayOfWeek, isValidDate } from './dateTime';
 import { getSundayOfWeek, isDateInWorkWeek, type WeekDay } from './week';
@@ -10,6 +11,7 @@ export type SelectedWeekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export interface DashboardFilterState {
   selectedMemberIds: string[];
   selectedCategories: EventCategory[];
+  selectedSystemTypes?: SystemCalendarEventType[];
   selectedWeekdays: SelectedWeekday[];
   specificDate: string | null;
 }
@@ -107,6 +109,7 @@ export function createResetFilterState(
   return {
     selectedMemberIds: authorizedMemberIds,
     selectedCategories: authorizedCategories,
+    selectedSystemTypes: systemCalendarFilterValues,
     selectedWeekdays: getDefaultSelectedWeekdays(today, weekStartDate),
     specificDate: null,
   };
@@ -120,6 +123,7 @@ export function sanitizeDashboardFilterState(
   return {
     selectedMemberIds: sanitizeSelection(state.selectedMemberIds, authorizedMemberIds),
     selectedCategories: sanitizeSelection(state.selectedCategories, authorizedCategories),
+    selectedSystemTypes: sanitizeSelection(state.selectedSystemTypes ?? systemCalendarFilterValues, systemCalendarFilterValues),
     selectedWeekdays: normalizeSelectedWeekdays(state.selectedWeekdays),
     specificDate: state.specificDate !== null && isValidDate(state.specificDate) ? state.specificDate : null,
   };

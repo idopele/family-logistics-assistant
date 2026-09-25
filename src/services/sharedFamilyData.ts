@@ -1,4 +1,5 @@
-import type { AuthorizationContext, Child, Event, EventException, EventReminder, TransportationLeg, TransportationPlan } from '../models';
+import type { AuthorizationContext, CalendarSourceSettings, Child, Event, EventException, EventReminder, TransportationLeg, TransportationPlan } from '../models';
+import { normalizeCalendarSourceSettings } from './calendarSources/calendarSourceService';
 import type { ScheduleImportInputRow, ScheduleImportMode } from './scheduleImport';
 import { isAuthorizationContext } from './authorization';
 import { loadCustomChildren } from './localChildStorage';
@@ -12,11 +13,12 @@ export type SharedFamilyState = {
   eventExceptions: EventException[];
   transportationPlans: TransportationPlan[];
   eventReminders: EventReminder[];
+  calendarSourceSettings?: CalendarSourceSettings;
   authorization?: AuthorizationContext;
   initialized: boolean;
 };
 
-export type LocalFamilyData = Omit<SharedFamilyState, 'initialized'>;
+export type LocalFamilyData = Omit<SharedFamilyState, 'initialized' | 'calendarSourceSettings'>;
 
 export interface ScheduleImportResult {
   created: number;
@@ -118,6 +120,10 @@ export async function upsertSharedEventReminder(reminder: EventReminder, fetcher
 
 export async function deleteSharedEventReminder(eventId: string, occurrenceDate: string, fetcher: Fetcher = fetch): Promise<void> {
   await sendMutation({ action: 'deleteEventReminder', payload: { eventId, occurrenceDate } }, fetcher);
+}
+
+export async function upsertSharedCalendarSourceSettings(settings: CalendarSourceSettings, fetcher: Fetcher = fetch): Promise<void> {
+  await sendMutation({ action: 'upsertCalendarSourceSettings', payload: normalizeCalendarSourceSettings(settings) }, fetcher);
 }
 
 export async function importLocalFamilyData(data: LocalFamilyData, fetcher: Fetcher = fetch): Promise<void> {
@@ -243,6 +249,7 @@ export function parseSharedFamilyState(value: unknown): SharedFamilyState | null
     eventExceptions: state.eventExceptions,
     transportationPlans: state.transportationPlans,
     eventReminders: state.eventReminders ?? [],
+    calendarSourceSettings: normalizeCalendarSourceSettings(state.calendarSourceSettings),
     authorization: state.authorization,
     initialized: state.initialized,
   };

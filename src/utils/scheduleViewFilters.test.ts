@@ -355,6 +355,7 @@ describe('schedule view date filters', () => {
     expect(createResetFilterState('2026-09-09', '2026-09-06', ['daniel'], ['school', 'dance'])).toEqual({
       selectedMemberIds: ['daniel'],
       selectedCategories: ['school', 'dance'],
+      selectedSystemTypes: ['holiday', 'school_vacation'],
       selectedWeekdays: [3],
       specificDate: null,
     });
@@ -364,6 +365,7 @@ describe('schedule view date filters', () => {
     const state: DashboardFilterState = {
       selectedMemberIds: ['daniel', 'emanuel'],
       selectedCategories: ['basketball', 'dance'],
+      selectedSystemTypes: ['holiday'],
       selectedWeekdays: [2, 3],
       specificDate: null,
     };
@@ -371,6 +373,7 @@ describe('schedule view date filters', () => {
     expect(sanitizeDashboardFilterState(state, ['emanuel'], ['dance'])).toEqual({
       selectedMemberIds: ['emanuel'],
       selectedCategories: ['dance'],
+      selectedSystemTypes: ['holiday'],
       selectedWeekdays: [2, 3],
       specificDate: null,
     });

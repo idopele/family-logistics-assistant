@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AddChildDialog } from '../components/AddChildDialog';
 import { AddEventDialog, type AddEventSaveResult } from '../components/AddEventDialog';
 import { AppInfoButton } from '../components/AppInfoButton';
+import { CalendarSourceControls } from '../components/CalendarSourceControls';
 import { DaySchedule } from '../components/DaySchedule';
 import { DeleteEventDialog } from '../components/DeleteEventDialog';
 import { EventDetailsDialog } from '../components/EventDetailsDialog';
@@ -11,6 +12,7 @@ import { OccurrenceEditDialog } from '../components/OccurrenceEditDialog';
 import { PwaInstallControl } from '../components/PwaInstallControl';
 import { ScheduleDateFilters } from '../components/ScheduleDateFilters';
 import { ScheduleFilters, categoryFilterValues, type CategoryFilter } from '../components/ScheduleFilters';
+import { SystemEventDetailsDialog } from '../components/SystemEventDetailsDialog';
 import { TransportationConflicts } from '../components/TransportationConflicts';
 import { TransportationDialog } from '../components/TransportationDialog';
 import { UiPreferenceControls } from '../components/UiPreferenceControls';
@@ -19,7 +21,7 @@ import { children as seedChildren } from '../data/children';
 import { getEventCategoryLabel } from '../data/eventCategories';
 import { eventExceptions } from '../data/eventExceptions';
 import { events } from '../data/events';
-import type { Child, Event, EventCategory, EventException, EventReminder, ScheduleOccurrence, TransportationPlan } from '../models';
+import type { CalendarSourceSettings, Child, Event, EventCategory, EventException, EventReminder, ScheduleOccurrence, SystemCalendarEvent, SystemCalendarEventType, TransportationPlan } from '../models';
 import { deleteCustomEvent, updateCustomEvent } from '../services/localEventStorage';
 import {
   deleteCustomEventExceptionsForEvent,
@@ -46,6 +48,7 @@ import {
   upsertSharedEventException,
   upsertSharedEventReminder,
   upsertSharedTransportationPlan,
+  upsertSharedCalendarSourceSettings,
   deleteSharedEventReminderInState,
   upsertSharedEventReminderInState,
   type LocalFamilyData,
@@ -66,6 +69,13 @@ import { buildFamilyActionCenterData } from '../services/familyActionCenter';
 import { registerFamilyServiceWorker } from '../services/pushNotifications';
 import { canEditEvent, hasPermission, isEventAuthorized } from '../services/authorization';
 import { getOccurrenceParticipantIds } from '../services/eventParticipants';
+import {
+  filterSystemCalendarEventsForDashboard,
+  getDefaultCalendarSourceSettings,
+  getSystemCalendarEventsForRange,
+  getSystemEventsForDate,
+  systemCalendarFilterValues,
+} from '../services/calendarSources/calendarSourceService';
 import { useUiPreferences, type Language } from '../i18n';
 import type { AuthSession } from '../services/authClient';
 import { addDays, getDayOfWeek, isValidDate } from '../utils/dateTime';
@@ -113,6 +123,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
   const [isImportScheduleOpen, setIsImportScheduleOpen] = useState(false);
   const [isAddChildOpen, setIsAddChildOpen] = useState(false);
   const [selectedOccurrence, setSelectedOccurrence] = useState<ScheduleOccurrence | null>(null);
+  const [selectedSystemEvent, setSelectedSystemEvent] = useState<SystemCalendarEvent | null>(null);
   const [deepLinkMessage, setDeepLinkMessage] = useState<string | null>(null);
   const [transportationOccurrence, setTransportationOccurrence] = useState<ScheduleOccurrence | null>(null);
   const [eventToEdit, setEventToEdit] = useState<Event | null>(null);
@@ -122,6 +133,8 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
   const [customEventExceptions, setCustomEventExceptions] = useState<EventException[]>(() => localMigrationData.eventExceptions);
   const [transportationPlans, setTransportationPlans] = useState<TransportationPlan[]>(() => localMigrationData.transportationPlans);
   const [eventReminders, setEventReminders] = useState<EventReminder[]>(() => localMigrationData.eventReminders);
+  const [calendarSourceSettings, setCalendarSourceSettings] = useState<CalendarSourceSettings>(() => getDefaultCalendarSourceSettings());
+  const [isSavingCalendarSources, setIsSavingCalendarSources] = useState(false);
   const [customChildren, setCustomChildren] = useState<Child[]>(() => localMigrationData.customChildren);
   const [sharedDataStatus, setSharedDataStatus] = useState<SharedDataStatus>('syncing');
   const [sharedDataInitialized, setSharedDataInitialized] = useState(false);
@@ -228,6 +241,16 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
 
     return getOccurrencesForRange(allEvents, allEventExceptions, weekStartDate, weekEndDate);
   }, [allEventExceptions, allEvents, weekDays, weekStartDate]);
+  const weekSystemEvents = useMemo(() => {
+    const weekEndDate = weekDays[weekDays.length - 1]?.date ?? weekStartDate;
+
+    return getSystemCalendarEventsForRange({
+      settings: calendarSourceSettings,
+      startDate: weekStartDate,
+      endDate: weekEndDate,
+      visibleParticipantIds: authorizedMemberIds,
+    });
+  }, [authorizedMemberIds, calendarSourceSettings, weekDays, weekStartDate]);
   const transportationConflictOccurrences = useMemo(() => {
     const weekEndDate = weekDays[weekDays.length - 1]?.date ?? weekStartDate;
 
@@ -281,6 +304,16 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
       !showOnlyWithTransportation || getTransportationPlanForScheduleOccurrence(visibleTransportationPlans, occurrence) !== null,
     );
   }, [authorizedCategories, authorizedMemberIds, sanitizedFilters, showOnlyWithTransportation, visibleTransportationPlans, weekAllOccurrences]);
+  const visibleSystemEvents = useMemo(() => {
+    const selectedDates = visibleWeekDays.map((day) => day.date);
+
+    return filterSystemCalendarEventsForDashboard({
+      events: weekSystemEvents,
+      selectedMemberIds: sanitizedFilters.selectedMemberIds,
+      selectedTypes: sanitizedFilters.selectedSystemTypes ?? systemCalendarFilterValues,
+      selectedDates,
+    });
+  }, [sanitizedFilters, visibleWeekDays, weekSystemEvents]);
   const categoryRankOccurrences = useMemo(() => {
     if (sanitizedFilters.specificDate !== null && isValidDate(sanitizedFilters.specificDate)) {
       return weekAllOccurrences.filter((occurrence) => occurrence.date === sanitizedFilters.specificDate);
@@ -319,12 +352,13 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
         events: allEvents,
         exceptions: allEventExceptions,
         transportationPlans: visibleTransportationPlans,
+        systemEvents: visibleSystemEvents,
         children: activeChildren,
         today,
         currentTime,
         language,
       }),
-    [activeChildren, allEventExceptions, allEvents, currentTime, language, today, visibleTransportationPlans],
+    [activeChildren, allEventExceptions, allEvents, currentTime, language, today, visibleSystemEvents, visibleTransportationPlans],
   );
 
   const shouldShowMigrationNotice =
@@ -343,6 +377,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
       setCustomEventExceptions(sharedState.eventExceptions);
       setTransportationPlans(sharedState.transportationPlans);
       setEventReminders(sharedState.eventReminders);
+      setCalendarSourceSettings(sharedState.calendarSourceSettings ?? getDefaultCalendarSourceSettings());
       setAuthorization(sharedState.authorization ?? authSession?.authorization ?? null);
       setSharedDataInitialized(sharedState.initialized);
       setSharedDataStatus('shared');
@@ -372,6 +407,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
       nextFilters.specificDate !== filters.specificDate ||
       nextFilters.selectedMemberIds.join('|') !== filters.selectedMemberIds.join('|') ||
       nextFilters.selectedCategories.join('|') !== filters.selectedCategories.join('|') ||
+      (nextFilters.selectedSystemTypes ?? systemCalendarFilterValues).join('|') !== (filters.selectedSystemTypes ?? systemCalendarFilterValues).join('|') ||
       nextFilters.selectedWeekdays.join('|') !== filters.selectedWeekdays.join('|')
     ) {
       setFilters(nextFilters);
@@ -752,6 +788,28 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
     setFilters({ ...filters, selectedCategories });
   }
 
+  function handleSystemTypeSelectionChange(selectedSystemTypes: SystemCalendarEventType[]) {
+    setFilters({ ...filters, selectedSystemTypes });
+  }
+
+  async function handleCalendarSourceSettingsChange(settings: CalendarSourceSettings) {
+    setIsSavingCalendarSources(true);
+    const didSave = await runSharedMutation(() => upsertSharedCalendarSourceSettings(settings));
+
+    if (didSave) {
+      setCalendarSourceSettings(settings);
+    }
+
+    setIsSavingCalendarSources(false);
+  }
+
+  async function handleRefreshCalendarSources() {
+    await handleCalendarSourceSettingsChange({
+      ...calendarSourceSettings,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
   function handleSelectedWeekdaysChange(selectedWeekdays: SelectedWeekday[]) {
     setFilters({ ...filters, selectedWeekdays, specificDate: null });
   }
@@ -801,12 +859,21 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
               children={activeChildren}
               selectedMemberIds={sanitizedFilters.selectedMemberIds}
               selectedCategories={sanitizedFilters.selectedCategories}
+              selectedSystemTypes={sanitizedFilters.selectedSystemTypes}
               availableCategoryFilters={availableCategoryFilters}
               categoryRankOccurrences={categoryRankOccurrences}
               showOnlyWithTransportation={showOnlyWithTransportation}
               onMemberSelectionChange={handleMemberSelectionChange}
               onCategorySelectionChange={handleCategorySelectionChange}
+              onSystemTypeSelectionChange={handleSystemTypeSelectionChange}
               onShowOnlyWithTransportationChange={setShowOnlyWithTransportation}
+            />
+            <CalendarSourceControls
+              settings={calendarSourceSettings}
+              canManage={canManageFamilyMembers}
+              isSaving={isSavingCalendarSources}
+              onChange={(settings) => void handleCalendarSourceSettingsChange(settings)}
+              onRefresh={() => void handleRefreshCalendarSources()}
             />
             <div className="dashboard-time-controls">
               <WeekNavigation
@@ -890,7 +957,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
           <h2 id="weekly-schedule-title">{t('weekSection')}</h2>
           <span>{formatWeekRange(weekStartDate, language)}</span>
         </div>
-        {canViewSchedule && weekOccurrences.length === 0 ? (
+        {canViewSchedule && weekOccurrences.length === 0 && visibleSystemEvents.length === 0 ? (
           <p className="weekly-schedule__empty-filter">{t('noEventsMatchFilters')}</p>
         ) : null}
         <div className="weekly-grid" aria-label={t('weekSection')}>
@@ -900,6 +967,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
               label={day.label}
               date={day.date}
               occurrences={weekOccurrences.filter((occurrence) => occurrence.date === day.date)}
+              systemEvents={getSystemEventsForDate(visibleSystemEvents, day.date)}
               childrenById={childrenById}
               childFilter={sanitizedFilters.selectedMemberIds.length === 1 ? sanitizedFilters.selectedMemberIds[0] : 'all'}
               editableEventIds={editableEventIds}
@@ -908,6 +976,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
               remindersByOccurrence={remindersByOccurrence}
               language={language}
               onOccurrenceSelect={setSelectedOccurrence}
+              onSystemEventSelect={setSelectedSystemEvent}
               isToday={isDateInWorkWeek(today, weekStartDate) && today === day.date}
             />
           ))}
@@ -989,6 +1058,7 @@ export function HomePage({ authSession, onLogout }: { authSession?: AuthSession;
         onCancel={() => setPendingConfirmation(null)}
         onConfirm={handleConfirmAction}
       />
+      <SystemEventDetailsDialog event={selectedSystemEvent} onClose={() => setSelectedSystemEvent(null)} />
     </main>
   );
 }

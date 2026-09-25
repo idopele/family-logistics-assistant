@@ -11,6 +11,7 @@ describe('HomePage mobile PWA header readiness', () => {
     expect(markup).toContain(translations.he.appName);
     expect(markup).toContain(translations.he.addEvent);
     expect(markup).toContain(translations.he.appInfo);
+    expect(markup).toContain(translations.he.calendarSources);
     expect(markup).toContain('class="app-info__button"');
   });
 });

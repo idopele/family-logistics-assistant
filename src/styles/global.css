@@ -398,6 +398,18 @@ summary:focus-visible {
 
 .dashboard-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: start; }
 .dashboard-header-tools { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; justify-content: start; }
+.calendar-sources { display: grid; gap: var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--color-surface) 82%, var(--color-bg-soft)); padding: var(--space-3); }
+.calendar-sources__header { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: var(--space-2); }
+.calendar-sources__header h2, .calendar-sources__header p { margin: 0; }
+.calendar-sources__header h2 { color: var(--color-text); font-size: 0.98rem; font-weight: 950; }
+.calendar-sources__header p, .calendar-sources__metadata { color: var(--color-text-muted); font-size: 0.78rem; font-weight: 850; }
+.calendar-sources__header button { min-height: 2.1rem; border-color: var(--color-border); background: var(--color-surface); color: var(--color-primary); padding: 0 0.7rem; }
+.calendar-sources__grid, .calendar-sources__metadata, .calendar-sources__settings { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.calendar-source-toggle { display: inline-flex; align-items: center; gap: 0.45rem; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--color-text); padding: 0.38rem 0.62rem; font-size: 0.82rem; font-weight: 900; }
+.calendar-source-toggle input { width: auto; min-height: auto; }
+.calendar-source-toggle small { color: var(--color-text-muted); font-size: 0.72rem; font-weight: 800; }
+.calendar-sources__settings label { display: grid; gap: 0.2rem; color: var(--color-text-muted); font-size: 0.75rem; font-weight: 900; }
+.calendar-sources__settings select { min-height: 2.2rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); padding: 0 0.55rem; font: inherit; }
 .pwa-install {
   display: inline-flex;
   align-items: center;
@@ -918,9 +930,17 @@ summary:focus-visible {
 .day-schedule__empty { padding: var(--space-4) var(--space-2); }
 .schedule-section { display: grid; gap: 0.35rem; }
 .schedule-section__title { margin: 0; color: var(--color-text-muted); font-size: 0.76rem; font-weight: 950; }
+.schedule-section[data-variant='system'] { border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-2); }
 .schedule-section[data-variant='afternoon'] { border-top: 1px solid var(--color-border); padding-top: var(--space-2); }
 .schedule-section__content, .school-list { display: grid; }
 .schedule-section__content { gap: var(--space-2); }
+.system-calendar-list { display: grid; gap: 0.35rem; }
+.system-calendar-banner { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0.35rem 0.45rem; width: 100%; border: 1px solid color-mix(in srgb, var(--color-border) 80%, #6b7280); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--color-bg-soft) 78%, white); color: var(--color-text-soft); min-height: 2.15rem; padding: 0.35rem 0.5rem; text-align: start; }
+.system-calendar-banner:hover { border-color: var(--color-border-strong); background: var(--color-surface); }
+.system-calendar-banner strong { color: var(--color-text); font-size: 0.82rem; font-weight: 950; }
+.system-calendar-banner small { grid-column: 2; color: var(--color-text-muted); font-size: 0.72rem; font-weight: 850; }
+.system-calendar-banner[data-system-type='holiday'] { background: color-mix(in srgb, #e0f2fe 45%, var(--color-surface)); }
+.system-calendar-banner[data-system-type='school_vacation'] { background: color-mix(in srgb, #dcfce7 45%, var(--color-surface)); }
 .school-list { gap: 0.15rem; }
 .school-row { display: grid; grid-template-columns: auto 2.55rem auto minmax(0, auto) minmax(0, 1fr); align-items: center; gap: 0.3rem; min-height: 1.72rem; border-radius: 0.5rem; background: rgb(255 255 255 / 52%); padding: 0.16rem 0.35rem; }
 .school-row--button { width: 100%; border: 0; color: inherit; font: inherit; text-align: inherit; transition: background-color 140ms ease, transform 140ms ease; }
@@ -1382,6 +1402,21 @@ summary:focus-visible {
 
 :root[data-theme='dark'] .event-card__transportation {
   color: #ffdca5;
+}
+
+:root[data-theme='dark'] .calendar-sources,
+:root[data-theme='dark'] .calendar-source-toggle,
+:root[data-theme='dark'] .system-calendar-banner {
+  background: rgb(17 24 39 / 72%);
+  border-color: rgb(71 85 105 / 82%);
+}
+
+:root[data-theme='dark'] .system-calendar-banner[data-system-type='holiday'] {
+  background: color-mix(in srgb, #0f3a55 55%, var(--color-surface));
+}
+
+:root[data-theme='dark'] .system-calendar-banner[data-system-type='school_vacation'] {
+  background: color-mix(in srgb, #123524 55%, var(--color-surface));
 }
 
 :root[data-theme='dark'] .family-action-center__empty,

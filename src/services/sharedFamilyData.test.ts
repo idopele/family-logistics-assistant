@@ -101,6 +101,10 @@ describe('shared family data client service', () => {
       eventExceptions: [exception],
       transportationPlans: [transportationPlan],
       eventReminders: [],
+      calendarSourceSettings: expect.objectContaining({
+        israel_holidays: { enabled: true, includeMinorObservances: false },
+      }),
+      authorization: undefined,
       initialized: true,
     });
   });

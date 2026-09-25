@@ -50,4 +50,47 @@ describe('DaySchedule', () => {
     expect(markup).toContain('type="button"');
     expect(markup).toContain('מתמטיקה');
   });
+
+  it('renders read-only system calendar banners separately from timed cards', () => {
+    const markup = renderToStaticMarkup(
+      <DaySchedule
+        label="שבת"
+        date="2026-09-12"
+        occurrences={[]}
+        systemEvents={[
+          {
+            id: 'israel_holidays:rosh-hashana-5787',
+            source: 'israel_holidays',
+            type: 'holiday',
+            title: { he: 'ראש השנה', en: 'Rosh Hashana' },
+            startDate: '2026-09-12',
+            endDate: '2026-09-12',
+            allDay: true,
+            description: null,
+            sourceUrl: null,
+            sourceReference: null,
+            appliesToAllParticipants: true,
+            participantIds: [],
+            metadata: {
+              sourceName: { he: 'Hebcal', en: 'Hebcal' },
+              lastVerifiedAt: '2026-09-23',
+              readOnly: true,
+            },
+          },
+        ]}
+        childrenById={new Map([[child.id, child]])}
+        childFilter="all"
+        editableEventIds={new Set()}
+        customRecurringEventIds={new Set()}
+        transportationPlansByOccurrence={new Map()}
+        onOccurrenceSelect={() => undefined}
+        onSystemEventSelect={() => undefined}
+        isToday={false}
+      />,
+    );
+
+    expect(markup).toContain('system-calendar-banner');
+    expect(markup).toContain('ראש השנה');
+    expect(markup).not.toContain('event-card');
+  });
 });

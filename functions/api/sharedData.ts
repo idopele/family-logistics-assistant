@@ -1,5 +1,6 @@
 import type {
   Child,
+  CalendarSourceSettings,
   Event,
   EventCategory,
   EventException,
@@ -8,6 +9,7 @@ import type {
   TransportationLeg,
   TransportationPlan,
 } from '../../src/models';
+import { normalizeCalendarSourceSettings } from '../../src/services/calendarSources/calendarSourceService';
 import { events as seedEvents } from '../../src/data/events';
 import {
   getDuplicateKeyForTarget,
@@ -58,6 +60,7 @@ export type SharedFamilyState = {
   eventExceptions: EventException[];
   transportationPlans: TransportationPlan[];
   eventReminders: EventReminder[];
+  calendarSourceSettings: CalendarSourceSettings;
   authorization?: Awaited<ReturnType<typeof readAuthorizationContext>>;
   initialized: boolean;
 };
@@ -73,6 +76,7 @@ type MutationRequest =
   | { action: 'deleteTransportationPlan'; payload: { eventId: string; occurrenceDate: string } }
   | { action: 'upsertEventReminder'; payload: EventReminder }
   | { action: 'deleteEventReminder'; payload: { eventId: string; occurrenceDate: string } }
+  | { action: 'upsertCalendarSourceSettings'; payload: CalendarSourceSettings }
   | { action: 'importLocalData'; payload: Omit<SharedFamilyState, 'initialized'> }
   | { action: 'importSchedule'; payload: ScheduleImportPayload };
 
@@ -131,12 +135,13 @@ export async function handleGetSharedState(context: PagesContext, auth?: Authent
   }
 
   try {
-    const [children, events, exceptions, transportationPlans, eventReminders, initialized, authorization] = await Promise.all([
+    const [children, events, exceptions, transportationPlans, eventReminders, calendarSourceSettings, initialized, authorization] = await Promise.all([
       readPayloadRows<Child>(db, 'SELECT payload FROM custom_children ORDER BY id', isChild),
       readPayloadRows<Event>(db, 'SELECT payload FROM custom_events ORDER BY id', isEvent),
       readPayloadRows<EventException>(db, 'SELECT payload FROM event_exceptions ORDER BY event_id, occurrence_date', isEventException),
       readPayloadRows<TransportationPlan>(db, 'SELECT payload FROM transportation_plans ORDER BY occurrence_date, event_id', isTransportationPlan),
       readEventReminderRows(db),
+      readCalendarSourceSettings(db),
       readInitializedFlag(db),
       auth === undefined ? Promise.resolve(null) : readAuthorizationContext(db, auth),
     ]);
@@ -150,6 +155,7 @@ export async function handleGetSharedState(context: PagesContext, auth?: Authent
       eventExceptions: visibleState.exceptions,
       transportationPlans: visibleState.transportationPlans,
       eventReminders: visibleState.eventReminders,
+      calendarSourceSettings,
       authorization: authorization ?? undefined,
       initialized,
     });
@@ -288,6 +294,7 @@ export function parseSharedFamilyState(value: unknown): SharedFamilyState | null
     eventExceptions: state.eventExceptions,
     transportationPlans: state.transportationPlans,
     eventReminders: state.eventReminders ?? [],
+    calendarSourceSettings: normalizeCalendarSourceSettings(state.calendarSourceSettings),
     initialized: state.initialized,
   };
 }
@@ -483,6 +490,8 @@ function parseMutationRequest(value: unknown): MutationRequest | null {
       return isEventReminder(request.payload) ? { action: request.action, payload: request.payload } : null;
     case 'deleteEventReminder':
       return isTransportationDatePayload(request.payload) ? { action: request.action, payload: request.payload } : null;
+    case 'upsertCalendarSourceSettings':
+      return isCalendarSourceSettings(request.payload) ? { action: request.action, payload: request.payload } : null;
     case 'importLocalData':
       return isImportPayload(request.payload) ? { action: request.action, payload: request.payload } : null;
     case 'importSchedule':
@@ -504,6 +513,8 @@ async function canApplyMutation(db: D1Database, auth: AuthenticatedSession, muta
     case 'deleteChild':
     case 'importLocalData':
       return false;
+    case 'upsertCalendarSourceSettings':
+      return hasPermission(authorization, 'manage_users');
     case 'importSchedule':
       return hasPermission(authorization, 'edit_schedule');
     case 'upsertEvent': {
@@ -725,6 +736,19 @@ async function applyMutation(db: D1Database, mutation: MutationRequest): Promise
         .bind(mutation.payload.eventId, mutation.payload.occurrenceDate)
         .run();
       break;
+    case 'upsertCalendarSourceSettings':
+      await db
+        .prepare('INSERT INTO workspace_calendar_sources (workspace_id, source_id, enabled, config_json, updated_by_user_id, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(workspace_id, source_id) DO UPDATE SET enabled = excluded.enabled, config_json = excluded.config_json, updated_by_user_id = excluded.updated_by_user_id, updated_at = excluded.updated_at')
+        .bind(
+          'default-family-workspace',
+          'calendar_sources',
+          1,
+          JSON.stringify(normalizeCalendarSourceSettings(mutation.payload)),
+          null,
+          new Date().toISOString(),
+        )
+        .run();
+      break;
     case 'importLocalData':
       await importLocalData(db, mutation.payload);
       break;
@@ -821,6 +845,23 @@ async function readEventReminderRows(db: D1Database): Promise<EventReminder[]> {
   }
 }
 
+async function readCalendarSourceSettings(db: D1Database): Promise<CalendarSourceSettings> {
+  try {
+    const row = await db
+      .prepare('SELECT config_json FROM workspace_calendar_sources WHERE workspace_id = ? AND source_id = ?')
+      .bind('default-family-workspace', 'calendar_sources')
+      .first<{ config_json: string }>();
+
+    if (row === null) {
+      return normalizeCalendarSourceSettings(null);
+    }
+
+    return normalizeCalendarSourceSettings(JSON.parse(row.config_json));
+  } catch {
+    return normalizeCalendarSourceSettings(null);
+  }
+}
+
 async function readInitializedFlag(db: D1Database): Promise<boolean> {
   const row = await db.prepare('SELECT value FROM app_meta WHERE key = ?').bind(initializedMetaKey).first<{ value: string }>();
 
@@ -890,6 +931,10 @@ function isScheduleImportPayload(value: unknown): value is ScheduleImportPayload
     payload.rows.length <= maxScheduleImportRows &&
     payload.rows.every(isScheduleImportInputRow)
   );
+}
+
+function isCalendarSourceSettings(value: unknown): value is CalendarSourceSettings {
+  return typeof value === 'object' && value !== null;
 }
 
 function isScheduleImportInputRow(value: unknown): value is ScheduleImportInputRow {

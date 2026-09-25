@@ -78,6 +78,7 @@ Database migration file:
 - `migrations/0003_push_notifications.sql`
 - `migrations/0004_authentication_members.sql`
 - `migrations/0005_permission_shared_views.sql`
+- `migrations/0006_calendar_sources.sql`
 
 The migration creates:
 
@@ -478,6 +479,54 @@ Production validation procedure:
 11. Try a restricted edit without access to all participants and verify it is rejected.
 12. Verify existing reminders, transportation plans, deep links, CSV imports, and WhatsApp weekly imports still work.
 
+## Israel Calendar Sources
+
+Version `0.14.7` adds read-only system calendar sources. These are resolved alongside custom schedule events but are not stored in `custom_events` and cannot be edited, deleted, moved, assigned rides, or counted as timed conflicts.
+
+Architecture:
+
+- `SystemCalendarEvent` represents provider-driven all-day context with `source`, `type`, `startDate`, `endDate`, source metadata, and participant applicability.
+- `src/services/calendarSources/israelHolidays.ts` provides the Israel holiday source using a versioned Hebcal-attributed normalized dataset with Israel mode metadata (`i=on`).
+- `src/services/calendarSources/ministryEducationVacations.ts` provides a versioned Ministry of Education vacation dataset for school year `2026-2027`.
+- `src/services/calendarSources/calendarSourceService.ts` combines enabled sources, normalizes settings, filters by visible participants/date/source type, and catches provider failures so the family schedule continues to load.
+- Dashboard code consumes system events separately from editable `Event` records. They render as compact all-day banners and open a read-only source details panel.
+
+Hebcal source:
+
+- Source attribution: Hebcal Israel calendar, `https://www.hebcal.com/hebcal?v=1&cfg=json&maj=on&mod=on&i=on`.
+- Israel mode is mandatory. Tests verify Israel-specific behavior, including no Diaspora second day for Shavuot.
+- Major Jewish holidays and modern Israeli national observances are included by default.
+- Minor observances are disabled by default and can be enabled from Calendar sources.
+- Holiday dates are represented as civil all-day dates, not fake timed appointments.
+
+Ministry of Education source:
+
+- Source attribution: Israel Ministry of Education vacation calendar, `https://pop.education.gov.il/maagal_hashana/vacation-schedule/`.
+- The current normalized dataset is for Jewish official education, middle school, school year `2026-2027`.
+- The provider is profile-aware (`sector`, `level`, `schoolYear`) so future school years or sectors can be added without changing dashboard logic.
+- Default workspace settings map the current student profile to Daniel and Emanuel as relevant participants. Provider logic itself does not hardcode names.
+- Vacation ranges remain one logical system event even when surfaced on multiple dashboard dates.
+
+Persistence and refresh:
+
+- Migration `migrations/0006_calendar_sources.sql` adds `workspace_calendar_sources` for workspace-level settings and `calendar_source_cache` for a future optional source cache.
+- The app can load safely before migration 0006 is applied by falling back to default source settings. Owner/admin changes require migration 0006.
+- The Refresh sources control updates/recalculates the stored source settings timestamp. The current providers are local/versioned, so no live scrape or repeated remote browser fetch is required.
+- Provider text is treated as plain text. No HTML from source data is rendered.
+
+Production validation procedure:
+
+1. Deploy the code after committing.
+2. Apply `migrations/0006_calendar_sources.sql` exactly once to the production D1 database.
+3. Sign in as owner/admin and confirm Calendar sources is visible.
+4. Verify Israeli holidays and Ministry vacations can be enabled/disabled.
+5. Verify Rosh Hashana on `2026-09-12` appears as a holiday context item.
+6. Verify the overlapping school vacation appears separately from the holiday.
+7. Filter Daniel: holidays and relevant school vacations remain visible.
+8. Filter a non-student participant: holidays remain visible and school vacations are hidden unless configured for that participant.
+9. Open a system event details panel and verify source/date/read-only metadata appears and no edit/delete controls are shown.
+10. Verify Action Center lists each holiday/vacation once and transportation conflict detection ignores all-day system context.
+
 ## Manual Deployment Steps
 
 1. Commit the current project state to Git.
@@ -511,6 +560,8 @@ Before sharing the private URL:
 - `migrations/0002_event_reminders.sql` has been applied to the D1 database.
 - `migrations/0003_push_notifications.sql` has been applied to the D1 database.
 - `migrations/0004_authentication_members.sql` has been applied to the D1 database.
+- `migrations/0005_permission_shared_views.sql` has been applied to the D1 database.
+- `migrations/0006_calendar_sources.sql` has been applied to the D1 database.
 - `AUTH_BOOTSTRAP_TOKEN` is configured as an encrypted Cloudflare Pages Secret before first-owner setup.
 - First-owner bootstrap succeeds exactly once.
 - Login, logout, invite acceptance, account disable, and session revoke are manually verified.

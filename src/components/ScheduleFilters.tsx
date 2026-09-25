@@ -1,7 +1,8 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import { getEventCategoryLabel } from '../data/eventCategories';
 import { useUiPreferences } from '../i18n';
-import type { Child, EventCategory, ScheduleOccurrence } from '../models';
+import type { Child, EventCategory, ScheduleOccurrence, SystemCalendarEventType } from '../models';
+import { systemCalendarFilterValues } from '../services/calendarSources/calendarSourceService';
 
 export type ChildFilter = 'all' | string;
 export type CategoryFilter =
@@ -27,11 +28,13 @@ interface ScheduleFiltersProps {
   children: Child[];
   selectedMemberIds: string[];
   selectedCategories: EventCategory[];
+  selectedSystemTypes?: SystemCalendarEventType[];
   availableCategoryFilters?: CategoryFilter[];
   categoryRankOccurrences?: ScheduleOccurrence[];
   showOnlyWithTransportation: boolean;
   onMemberSelectionChange: (memberIds: string[]) => void;
   onCategorySelectionChange: (categories: EventCategory[]) => void;
+  onSystemTypeSelectionChange?: (types: SystemCalendarEventType[]) => void;
   onShowOnlyWithTransportationChange: (value: boolean) => void;
 }
 
@@ -101,11 +104,13 @@ export function ScheduleFilters({
   children,
   selectedMemberIds,
   selectedCategories,
+  selectedSystemTypes,
   availableCategoryFilters = categoryFilterValues,
   categoryRankOccurrences = [],
   showOnlyWithTransportation,
   onMemberSelectionChange,
   onCategorySelectionChange,
+  onSystemTypeSelectionChange = () => undefined,
   onShowOnlyWithTransportationChange,
 }: ScheduleFiltersProps) {
   const { language, t } = useUiPreferences();
@@ -118,6 +123,8 @@ export function ScheduleFilters({
   );
   const selectedMemberSet = useMemo(() => new Set(selectedMemberIds), [selectedMemberIds]);
   const selectedCategorySet = useMemo(() => new Set(selectedCategories), [selectedCategories]);
+  const effectiveSelectedSystemTypes = selectedSystemTypes ?? systemCalendarFilterValues;
+  const selectedSystemTypeSet = useMemo(() => new Set(effectiveSelectedSystemTypes), [effectiveSelectedSystemTypes]);
   const visibleMembers = useMemo(() => {
     const selected = children.filter((child) => selectedMemberSet.has(child.id));
     const ranked = [
@@ -142,6 +149,10 @@ export function ScheduleFilters({
 
   function toggleCategory(category: EventCategory) {
     onCategorySelectionChange(toggleSelection(selectedCategories, category, authorizedCategories));
+  }
+
+  function toggleSystemType(type: SystemCalendarEventType) {
+    onSystemTypeSelectionChange(toggleSelection(effectiveSelectedSystemTypes, type, systemCalendarFilterValues));
   }
 
   return (
@@ -231,6 +242,24 @@ export function ScheduleFilters({
             ))}
           </div>
         ) : null}
+      </div>
+      <div className="schedule-filters__compact-group" data-filter-group="system-calendar">
+        <span className="schedule-filters__label">{t('systemCalendarFilter')}</span>
+        <div className="schedule-filters__chips">
+          {systemCalendarFilterValues.map((filter) => (
+            <button
+              className="schedule-filters__button"
+              type="button"
+              aria-pressed={selectedSystemTypeSet.has(filter)}
+              data-selected={selectedSystemTypeSet.has(filter) ? 'true' : 'false'}
+              key={filter}
+              onClick={() => toggleSystemType(filter)}
+            >
+              <span className="schedule-filters__check" aria-hidden="true">{selectedSystemTypeSet.has(filter) ? '✓' : ''}</span>
+              {filter === 'holiday' ? t('holidaysAndObservances') : t('schoolVacations')}
+            </button>
+          ))}
+        </div>
       </div>
       <label className="transportation-filter-toggle">
         <input

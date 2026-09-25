@@ -3,6 +3,7 @@ import type {
   Event,
   EventException,
   ScheduleOccurrence,
+  SystemCalendarEvent,
   TransportationConflict,
   TransportationLeg,
   TransportationPlan,
@@ -53,6 +54,7 @@ export interface FamilyActionCenterData {
   cancellations: TodayCancellation[];
   transportationLegs: TodayTransportationLeg[];
   transportationConflicts: TransportationConflict[];
+  systemEventsToday: SystemCalendarEvent[];
   counts: {
     activities: number;
     transportationLegs: number;
@@ -64,6 +66,7 @@ export function buildFamilyActionCenterData({
   events,
   exceptions,
   transportationPlans,
+  systemEvents = [],
   children,
   today,
   currentTime,
@@ -72,6 +75,7 @@ export function buildFamilyActionCenterData({
   events: Event[];
   exceptions: EventException[];
   transportationPlans: TransportationPlan[];
+  systemEvents?: SystemCalendarEvent[];
   children: Child[];
   today: string;
   currentTime: string;
@@ -101,6 +105,7 @@ export function buildFamilyActionCenterData({
     cancellations,
     transportationLegs,
     transportationConflicts,
+    systemEventsToday: systemEvents.filter((event) => today >= event.startDate && today <= event.endDate),
     counts: {
       activities: remainingNonSchoolOccurrences.length,
       transportationLegs: transportationLegs.length,

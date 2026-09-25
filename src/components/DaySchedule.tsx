@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { Language } from '../i18n';
 import { useUiPreferences } from '../i18n';
-import type { Child, EventReminder, ScheduleOccurrence, TransportationPlan } from '../models';
+import { getLocalizedText, type Child, type EventReminder, type ScheduleOccurrence, type SystemCalendarEvent, type TransportationPlan } from '../models';
 import type { ChildFilter } from './ScheduleFilters';
 import { formatDisplayDate } from '../utils/week';
 import { EventCard } from './EventCard';
@@ -12,6 +12,7 @@ interface DayScheduleProps {
   label: string;
   date: string;
   occurrences: ScheduleOccurrence[];
+  systemEvents?: SystemCalendarEvent[];
   childrenById: Map<string, Child>;
   childFilter: ChildFilter;
   editableEventIds: Set<string>;
@@ -20,6 +21,7 @@ interface DayScheduleProps {
   remindersByOccurrence?: Map<string, EventReminder>;
   language?: Language;
   onOccurrenceSelect: (occurrence: ScheduleOccurrence) => void;
+  onSystemEventSelect?: (event: SystemCalendarEvent) => void;
   isToday: boolean;
 }
 
@@ -27,6 +29,7 @@ export function DaySchedule({
   label,
   date,
   occurrences,
+  systemEvents = [],
   childrenById,
   childFilter,
   editableEventIds,
@@ -35,6 +38,7 @@ export function DaySchedule({
   remindersByOccurrence = new Map(),
   language = 'he',
   onOccurrenceSelect,
+  onSystemEventSelect = () => undefined,
   isToday,
 }: DayScheduleProps) {
   const { t } = useUiPreferences();
@@ -48,10 +52,30 @@ export function DaySchedule({
         <time dateTime={date}>{formatDisplayDate(date)}</time>
       </header>
       <div className="day-schedule__events">
-        {occurrences.length === 0 ? (
+        {occurrences.length === 0 && systemEvents.length === 0 ? (
           <p className="day-schedule__empty">{t('noEvents')}</p>
         ) : (
           <>
+            {systemEvents.length > 0 ? (
+              <ScheduleSection title={t('calendarContextSection')} variant="system">
+                <div className="system-calendar-list">
+                  {systemEvents.map((event) => (
+                    <button
+                      className="system-calendar-banner"
+                      data-system-type={event.type}
+                      type="button"
+                      key={`${event.id}-${date}`}
+                      onClick={() => onSystemEventSelect(event)}
+                    >
+                      <span aria-hidden="true">{event.type === 'holiday' ? '🇮🇱' : '🏫'}</span>
+                      <strong>{getLocalizedText(event.title, language)}</strong>
+                      {event.startDate !== event.endDate ? <small>{event.startDate} - {event.endDate}</small> : null}
+                    </button>
+                  ))}
+                </div>
+              </ScheduleSection>
+            ) : null}
+
             {schoolOccurrences.length > 0 ? (
               <ScheduleSection title={t('schoolSection')} variant="school">
                 <div className="school-list">
@@ -113,7 +137,7 @@ function ScheduleSection({
   children,
 }: {
   title: string;
-  variant: 'school' | 'afternoon';
+  variant: 'system' | 'school' | 'afternoon';
   children: ReactNode;
 }) {
   return (
