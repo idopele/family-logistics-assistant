@@ -21,6 +21,7 @@ import {
   type ScheduleImportMode,
 } from '../../src/services/scheduleImport';
 import { getEventParticipantIds, sanitizeEventParticipants, withParticipantIds } from '../../src/services/eventParticipants';
+import { planAuthoritativeWeeklyBasketballReplacement } from '../../src/services/authoritativeWeeklyImport';
 import {
   canAccessEvent,
   hasPermission,
@@ -89,6 +90,7 @@ interface ScheduleImportPayload {
   batchId: string;
   rows: ScheduleImportInputRow[];
   replaceWeekly?: boolean;
+  manualRemovalEventIds?: string[];
 }
 
 interface ScheduleImportResult {
@@ -98,6 +100,15 @@ interface ScheduleImportResult {
   errors: number;
   batchId: string;
   eventIds: string[];
+  impact?: ScheduleImportImpactSummary;
+}
+
+interface ScheduleImportImpactSummary {
+  recurringSuppressed: number;
+  previousWeeklyRemoved: number;
+  officialGamesProtected: number;
+  manualOrUnknownEvents: number;
+  manualOrUnknownRemoved: number;
 }
 
 const initializedMetaKey = 'shared_data_initialized';
@@ -555,9 +566,15 @@ async function applyScheduleImport(db: D1Database, auth: AuthenticatedSession | 
   const authorization = auth === undefined ? null : await readAuthorizationContext(db, auth);
   const nowIso = new Date().toISOString();
   const customEvents = await readPayloadRows<Event>(db, 'SELECT payload FROM custom_events ORDER BY id', isEvent);
+  const existingExceptions = await readPayloadRows<EventException>(
+    db,
+    'SELECT payload FROM event_exceptions ORDER BY event_id, occurrence_date',
+    isEventException,
+  );
   const duplicateKeys = new Set([...seedEvents, ...customEvents].map((event) => getDuplicateKeyFromEvent(event)));
   const statements: D1PreparedStatement[] = [];
   const eventIds: string[] = [];
+  let impact: ScheduleImportImpactSummary | undefined;
   let skipped = 0;
   let duplicates = 0;
   let errors = 0;
@@ -574,11 +591,46 @@ async function applyScheduleImport(db: D1Database, auth: AuthenticatedSession | 
       isImportedFromSource(event, 'whatsapp_weekly') &&
       (authorization === null || canAccessEvent(authorization, event, 'edit_schedule'))
     );
+    const seedEventIds = new Set(seedEvents.map((event) => event.id));
+    const replacementPlan = planAuthoritativeWeeklyBasketballReplacement({
+      events: [...seedEvents, ...customEvents],
+      exceptions: existingExceptions,
+      targetMemberId: payload.targetMemberId,
+      targetWeekStart: payload.startDate,
+      manualRemovalEventIds: payload.manualRemovalEventIds,
+      suppressibleRecurringEventIds: seedEventIds,
+    });
+    const manuallyRemovableEvents = replacementPlan.manualOrUnknownEventsToRemove.filter((event) =>
+      authorization === null || canAccessEvent(authorization, event, 'edit_schedule')
+    );
+    const suppressionExceptions = replacementPlan.suppressionExceptionsToCreate.filter((exception) => {
+      const event = seedEvents.find((candidate) => candidate.id === exception.eventId);
+
+      return event !== undefined && (authorization === null || canAccessEvent(authorization, event, 'edit_schedule'));
+    });
 
     statements.push(...removableEvents.map((event) => db.prepare('DELETE FROM custom_events WHERE id = ?').bind(event.id)));
+    statements.push(...manuallyRemovableEvents.map((event) => db.prepare('DELETE FROM custom_events WHERE id = ?').bind(event.id)));
+    statements.push(
+      ...suppressionExceptions.map((exception) =>
+        db
+          .prepare('INSERT INTO event_exceptions (event_id, occurrence_date, payload, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(event_id, occurrence_date) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at')
+          .bind(exception.eventId, exception.date, JSON.stringify(exception), nowIso),
+      ),
+    );
     for (const event of removableEvents) {
       duplicateKeys.delete(getDuplicateKeyFromEvent(event));
     }
+    for (const event of manuallyRemovableEvents) {
+      duplicateKeys.delete(getDuplicateKeyFromEvent(event));
+    }
+    impact = {
+      recurringSuppressed: replacementPlan.recurringOccurrencesToSuppress.length,
+      previousWeeklyRemoved: removableEvents.length,
+      officialGamesProtected: replacementPlan.officialGameEvents.length,
+      manualOrUnknownEvents: replacementPlan.manualOrUnknownEvents.length,
+      manualOrUnknownRemoved: manuallyRemovableEvents.length,
+    };
   }
 
   for (const row of payload.rows) {
@@ -636,6 +688,7 @@ async function applyScheduleImport(db: D1Database, auth: AuthenticatedSession | 
     errors,
     batchId: payload.batchId,
     eventIds,
+    impact,
   };
 }
 
@@ -927,6 +980,8 @@ function isScheduleImportPayload(value: unknown): value is ScheduleImportPayload
     typeof payload.batchId === 'string' &&
     payload.batchId.trim() !== '' &&
     (typeof payload.replaceWeekly === 'boolean' || payload.replaceWeekly === undefined) &&
+    (payload.manualRemovalEventIds === undefined ||
+      (Array.isArray(payload.manualRemovalEventIds) && payload.manualRemovalEventIds.every((id) => typeof id === 'string' && id.trim() !== ''))) &&
     Array.isArray(payload.rows) &&
     payload.rows.length <= maxScheduleImportRows &&
     payload.rows.every(isScheduleImportInputRow)

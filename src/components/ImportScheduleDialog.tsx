@@ -2,16 +2,18 @@ import { useMemo, useState, type ChangeEvent, type Dispatch, type SetStateAction
 import { getEventCategoryLabel } from '../data/eventCategories';
 import { useUiPreferences } from '../i18n';
 import type { Child, Event, EventCategory } from '../models';
-import type { ScheduleImportResult } from '../services/sharedFamilyData';
+import type { ScheduleImportImpactSummary, ScheduleImportResult } from '../services/sharedFamilyData';
 import {
   buildScheduleImportRows,
   getDuplicateKeyForTarget,
+  isImportedFromSource,
   maxScheduleImportCsvBytes,
   type ColumnMapping,
   type ScheduleImportField,
   type ScheduleImportInputRow,
   type ScheduleImportMode,
 } from '../services/scheduleImport';
+import { planAuthoritativeWeeklyBasketballReplacement } from '../services/authoritativeWeeklyImport';
 import { addDays } from '../utils/dateTime';
 import { isValidDate, isValidTime } from '../utils/dateTime';
 import { getSundayOfWeek, parseWeeklyScheduleText } from '../services/weeklyScheduleTextParser';
@@ -31,6 +33,7 @@ interface ImportScheduleDialogProps {
     batchId: string;
     rows: ScheduleImportInputRow[];
     replaceWeekly?: boolean;
+    manualRemovalEventIds?: string[];
   }) => Promise<ScheduleImportResult>;
 }
 
@@ -70,6 +73,7 @@ export function ImportScheduleDialog({
   const [mapping, setMapping] = useState<ColumnMapping>({});
   const [rowOverrides, setRowOverrides] = useState<Record<number, Partial<Pick<ScheduleImportInputRow, 'date' | 'startTime' | 'endTime' | 'title' | 'location'>>>>({});
   const [replaceWeekly, setReplaceWeekly] = useState(true);
+  const [manualRemovalEventIds, setManualRemovalEventIds] = useState<Set<string>>(() => new Set());
   const [deselectedRows, setDeselectedRows] = useState<Set<number>>(() => new Set());
   const [result, setResult] = useState<ScheduleImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -94,6 +98,8 @@ export function ImportScheduleDialog({
         targetMemberId,
         defaultCategory,
         existingEvents,
+        replaceWeekly,
+        targetWeekStart,
       );
 
       return { headers: [], mapping: {}, rows };
@@ -117,7 +123,7 @@ export function ImportScheduleDialog({
     } catch (previewError) {
       return { error: previewError instanceof Error ? previewError.message : t('rowsWithErrors') };
     }
-  }, [csvText, defaultCategory, endDate, existingEvents, mapping, mode, rowOverrides, sourceMode, startDate, t, targetMemberId, targetWeekStart, weeklyText]);
+  }, [csvText, defaultCategory, endDate, existingEvents, mapping, mode, replaceWeekly, rowOverrides, sourceMode, startDate, t, targetMemberId, targetWeekStart, weeklyText]);
 
   if (!isOpen) {
     return null;
@@ -128,6 +134,9 @@ export function ImportScheduleDialog({
     : [];
   const headers = preview !== null && !('error' in preview) ? preview.headers : [];
   const readyCount = parsedRows.filter((row) => row.selected && row.status !== 'invalid').length;
+  const impactPreview = sourceMode === 'weeklyText' && replaceWeekly && isValidDate(targetWeekStart)
+    ? buildWeeklyReplacementImpactPreview(existingEvents, targetMemberId, targetWeekStart, manualRemovalEventIds)
+    : null;
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -144,6 +153,7 @@ export function ImportScheduleDialog({
     setError(null);
     setResult(null);
     setDeselectedRows(new Set());
+    setManualRemovalEventIds(new Set());
     setRowOverrides({});
     setCsvText(await file.text());
   }
@@ -179,12 +189,13 @@ export function ImportScheduleDialog({
       const importResult = await onImport({
         targetMemberId,
         defaultCategory,
-        mode,
+        mode: sourceMode === 'weeklyText' ? 'dated' : mode,
         startDate: sourceMode === 'weeklyText' ? targetWeekStart : mode === 'weekly' ? startDate : undefined,
         endDate: sourceMode === 'weeklyText' ? addDays(targetWeekStart, 6) : mode === 'weekly' && endDate !== '' ? endDate : null,
         batchId: `${sourceMode === 'weeklyText' ? 'whatsapp-weekly' : 'csv'}-${Date.now().toString(36)}`,
         rows: parsedRows,
         replaceWeekly: sourceMode === 'weeklyText' && replaceWeekly,
+        manualRemovalEventIds: sourceMode === 'weeklyText' && replaceWeekly ? Array.from(manualRemovalEventIds) : undefined,
       });
       setResult(importResult);
     } catch {
@@ -216,6 +227,7 @@ export function ImportScheduleDialog({
                   setResult(null);
                   setError(null);
                   setDeselectedRows(new Set());
+                  setManualRemovalEventIds(new Set());
                   setRowOverrides({});
                 }}
               >
@@ -264,6 +276,25 @@ export function ImportScheduleDialog({
                   <span>{t('updateWeeklySchedule')}</span>
                   <input type="checkbox" checked={replaceWeekly} onChange={(event) => setReplaceWeekly(event.target.checked)} />
                 </label>
+                {impactPreview !== null ? (
+                  <ImportImpactSummary
+                    impact={impactPreview}
+                    manualRemovalEventIds={manualRemovalEventIds}
+                    onToggleManualRemoval={(eventId) => {
+                      setManualRemovalEventIds((currentIds) => {
+                        const nextIds = new Set(currentIds);
+
+                        if (nextIds.has(eventId)) {
+                          nextIds.delete(eventId);
+                        } else {
+                          nextIds.add(eventId);
+                        }
+
+                        return nextIds;
+                      });
+                    }}
+                  />
+                ) : null}
               </>
             ) : null}
             {sourceMode === 'csv' && mode === 'weekly' ? (
@@ -425,14 +456,27 @@ function applyDuplicateState(
   targetMemberId: string,
   defaultCategory: EventCategory,
   existingEvents: Event[],
+  replaceWeekly = false,
+  targetWeekStart?: string,
 ): ScheduleImportInputRow[] {
   const existingKeys = new Set(existingEvents.map((event) => {
+    if (
+      replaceWeekly &&
+      targetWeekStart !== undefined &&
+      event.date !== null &&
+      event.date >= targetWeekStart &&
+      event.date <= addDays(targetWeekStart, 6) &&
+      isImportedFromSource(event, 'whatsapp_weekly')
+    ) {
+      return null;
+    }
+
     const dateOrDay = event.recurrence?.frequency === 'weekly'
       ? `w:${event.recurrence.daysOfWeek?.join(',') ?? ''}`
       : `d:${event.date ?? ''}`;
 
     return [event.childId, dateOrDay, event.startTime, normalizeImportText(event.title), event.category].join('|');
-  }));
+  }).filter((key): key is string => key !== null));
 
   return rows.map((row) => {
     const duplicateKey = getDuplicateKeyForTarget(row, targetMemberId, defaultCategory);
@@ -448,6 +492,73 @@ function applyDuplicateState(
 
     return row;
   });
+}
+
+interface WeeklyImpactPreview extends ScheduleImportImpactSummary {
+  manualOrUnknownItems: Event[];
+}
+
+function buildWeeklyReplacementImpactPreview(
+  existingEvents: Event[],
+  targetMemberId: string,
+  targetWeekStart: string,
+  manualRemovalEventIds: Set<string>,
+): WeeklyImpactPreview {
+  const plan = planAuthoritativeWeeklyBasketballReplacement({
+    events: existingEvents,
+    exceptions: [],
+    targetMemberId,
+    targetWeekStart,
+    manualRemovalEventIds: Array.from(manualRemovalEventIds),
+  });
+  const manualOrUnknownItems = plan.manualOrUnknownEvents;
+
+  return {
+    recurringSuppressed: plan.recurringOccurrencesToSuppress.length,
+    previousWeeklyRemoved: plan.previousWeeklyEvents.length,
+    officialGamesProtected: plan.officialGameEvents.length,
+    manualOrUnknownEvents: manualOrUnknownItems.length,
+    manualOrUnknownRemoved: plan.manualOrUnknownEventsToRemove.length,
+    manualOrUnknownItems,
+  };
+}
+
+function ImportImpactSummary({
+  impact,
+  manualRemovalEventIds,
+  onToggleManualRemoval,
+}: {
+  impact: WeeklyImpactPreview;
+  manualRemovalEventIds: Set<string>;
+  onToggleManualRemoval: (eventId: string) => void;
+}) {
+  const { t } = useUiPreferences();
+
+  return (
+    <section className="import-schedule-dialog__impact" aria-label={t('weeklyImportImpact')}>
+      <h3>{t('weeklyImportImpact')}</h3>
+      <dl>
+        <div><dt>{t('weeklyImpactRecurring')}</dt><dd>{impact.recurringSuppressed}</dd></div>
+        <div><dt>{t('weeklyImpactPrevious')}</dt><dd>{impact.previousWeeklyRemoved}</dd></div>
+        <div><dt>{t('weeklyImpactProtected')}</dt><dd>{impact.officialGamesProtected}</dd></div>
+        <div><dt>{t('weeklyImpactManual')}</dt><dd>{impact.manualOrUnknownEvents}</dd></div>
+      </dl>
+      {impact.manualOrUnknownItems.length > 0 ? (
+        <div className="import-schedule-dialog__manual-removal">
+          {impact.manualOrUnknownItems.map((event) => (
+            <label key={event.id}>
+              <input
+                type="checkbox"
+                checked={manualRemovalEventIds.has(event.id)}
+                onChange={() => onToggleManualRemoval(event.id)}
+              />
+              <span>{event.date} {event.startTime} · {event.title}</span>
+            </label>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
 }
 
 function editableCell(

@@ -27,6 +27,15 @@ export interface ScheduleImportResult {
   errors: number;
   batchId: string;
   eventIds: string[];
+  impact?: ScheduleImportImpactSummary;
+}
+
+export interface ScheduleImportImpactSummary {
+  recurringSuppressed: number;
+  previousWeeklyRemoved: number;
+  officialGamesProtected: number;
+  manualOrUnknownEvents: number;
+  manualOrUnknownRemoved: number;
 }
 
 type Fetcher = typeof fetch;
@@ -140,6 +149,7 @@ export async function importSharedSchedule(
     batchId: string;
     rows: ScheduleImportInputRow[];
     replaceWeekly?: boolean;
+    manualRemovalEventIds?: string[];
   },
   fetcher: Fetcher = fetch,
 ): Promise<ScheduleImportResult> {
@@ -286,7 +296,24 @@ function isScheduleImportResult(value: unknown): value is ScheduleImportResult {
     typeof result.errors === 'number' &&
     typeof result.batchId === 'string' &&
     Array.isArray(result.eventIds) &&
-    result.eventIds.every((id) => typeof id === 'string')
+    result.eventIds.every((id) => typeof id === 'string') &&
+    (result.impact === undefined || isScheduleImportImpactSummary(result.impact))
+  );
+}
+
+function isScheduleImportImpactSummary(value: unknown): value is ScheduleImportImpactSummary {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const impact = value as Partial<ScheduleImportImpactSummary>;
+
+  return (
+    typeof impact.recurringSuppressed === 'number' &&
+    typeof impact.previousWeeklyRemoved === 'number' &&
+    typeof impact.officialGamesProtected === 'number' &&
+    typeof impact.manualOrUnknownEvents === 'number' &&
+    typeof impact.manualOrUnknownRemoved === 'number'
   );
 }
 

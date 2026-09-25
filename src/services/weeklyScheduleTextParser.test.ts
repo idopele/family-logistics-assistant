@@ -72,6 +72,38 @@ describe('weekly WhatsApp schedule parser', () => {
     });
   });
 
+  it('detects time after weekday and descriptive departure text', () => {
+    const rows = parseWeeklyScheduleText({
+      text: 'יום חמישי טורניר ברמת גן יציאה בשעה 13:20',
+      targetWeekStart: '2026-09-27',
+      defaultCategory: 'basketball',
+    });
+
+    expect(rows[0]).toMatchObject({
+      weekday: 4,
+      date: '2026-10-01',
+      startTime: '13:20',
+      title: 'יציאה לטורניר ברמת גן',
+      location: 'רמת גן',
+      status: 'ready',
+    });
+  });
+
+  it('detects time anywhere in description-first weekday lines', () => {
+    const rows = parseWeeklyScheduleText({
+      text: [
+        'חמישי טורניר ברמת גן יציאה 13:20',
+        'חמישי 13:20 טורניר ברמת גן',
+        'יום חמישי - יציאה לטורניר ברמת גן בשעה 13:20',
+      ].join('\n'),
+      targetWeekStart: '2026-09-27',
+      defaultCategory: 'basketball',
+    });
+
+    expect(rows.map((row) => row.startTime)).toEqual(['13:20', '13:20', '13:20']);
+    expect(rows.every((row) => row.weekday === 4)).toBe(true);
+  });
+
   it('creates one-time WhatsApp imports, not recurring events', () => {
     const [row] = parseWeeklyScheduleText({
       text: '\u05e8\u05d0\u05e9\u05d5\u05df 09:00 \u05e8\u05dc\u05e3',

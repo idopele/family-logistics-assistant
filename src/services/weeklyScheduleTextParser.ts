@@ -21,6 +21,10 @@ const hebrewWeekdays: Array<{ label: string; weekday: number }> = [
 const dayPrefix = '\u05d9\u05d5\u05dd ';
 const basketballTrainingTitle = '\u05d0\u05d9\u05de\u05d5\u05df \u05db\u05d3\u05d5\u05e8\u05e1\u05dc';
 const practiceGameTitle = '\u05de\u05e9\u05d7\u05e7 \u05d0\u05d9\u05de\u05d5\u05df';
+const tournamentTitle = '\u05d9\u05e6\u05d9\u05d0\u05d4 \u05dc\u05d8\u05d5\u05e8\u05e0\u05d9\u05e8 \u05d1\u05e8\u05de\u05ea \u05d2\u05df';
+const tournamentKeyword = '\u05d8\u05d5\u05e8\u05e0\u05d9\u05e8';
+const ramatGan = '\u05e8\u05de\u05ea \u05d2\u05df';
+const departureKeyword = '\u05d9\u05e6\u05d9\u05d0\u05d4';
 const ralfLocation = '\u05e8\u05dc\u05e3';
 const athleticsTitle = '\u05d0\u05ea\u05dc\u05d8\u05d9\u05e7\u05d4';
 const hodHasharon = '\u05d4\u05d5\u05d3 \u05d4\u05e9\u05e8\u05d5\u05df';
@@ -124,11 +128,11 @@ function parseLinePrefix(line: string): { weekday: number | null; time: string |
     }
   }
 
-  const timeMatch = /^(\d{1,2}:\d{2}(?::\d{2})?(?:\s*[ap]m)?)\b/iu.exec(remaining);
-  const time = timeMatch === null ? null : parseImportTime(timeMatch[1]);
+  const timeMatch = findFirstTimeMatch(remaining);
+  const time = timeMatch === null ? null : parseImportTime(timeMatch.value);
 
   if (timeMatch !== null) {
-    remaining = remaining.slice(timeMatch[0].length).trim();
+    remaining = `${remaining.slice(0, timeMatch.index)} ${remaining.slice(timeMatch.index + timeMatch.raw.length)}`.trim();
   }
 
   return { weekday, time, description: remaining, hasTime: timeMatch !== null };
@@ -136,6 +140,10 @@ function parseLinePrefix(line: string): { weekday: number | null; time: string |
 
 function interpretDescription(description: string): { title: string; location: string | null; notes: string | null } {
   const text = description.trim();
+
+  if (text.includes(tournamentKeyword) && text.includes(ramatGan) && text.includes(departureKeyword)) {
+    return { title: tournamentTitle, location: ramatGan, notes: text };
+  }
 
   if (text.includes(ralfLocation)) {
     return { title: basketballTrainingTitle, location: ralfLocation, notes: null };
@@ -154,4 +162,23 @@ function interpretDescription(description: string): { title: string; location: s
   }
 
   return { title: text === '' ? basketballTrainingTitle : text, location: null, notes: null };
+}
+
+function findFirstTimeMatch(value: string): { value: string; raw: string; index: number } | null {
+  const timePattern = /\b(\d{1,2}:\d{2}(?::\d{2})?(?:\s*[ap]m)?)\b/giu;
+  let match: RegExpExecArray | null;
+
+  while ((match = timePattern.exec(value)) !== null) {
+    const parsedTime = parseImportTime(match[1]);
+
+    if (parsedTime !== null) {
+      return {
+        value: match[1],
+        raw: match[0],
+        index: match.index,
+      };
+    }
+  }
+
+  return null;
 }
